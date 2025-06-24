@@ -411,8 +411,10 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         total_B <- sum(residual_data$freq_B)
         total_overall <- total_A + total_B
         
-        expected_A <- residual_data$freq_A + residual_data$freq_B * (total_A / total_overall)
-        expected_B <- residual_data$freq_A + residual_data$freq_B * (total_B / total_overall)
+        # Correct expected value calculation: (row_total * column_total) / grand_total
+        row_totals <- residual_data$freq_A + residual_data$freq_B
+        expected_A <- row_totals * total_A / total_overall
+        expected_B <- row_totals * total_B / total_overall
         
         resid_A <- (residual_data$freq_A - expected_A) / sqrt(expected_A + 0.5)
         resid_B <- (residual_data$freq_B - expected_B) / sqrt(expected_B + 0.5)
@@ -657,8 +659,10 @@ plot.compare_sequences <- function(x, ...) {
         total_B <- sum(residual_data$freq_B)
         total_overall <- total_A + total_B
         
-        expected_A <- residual_data$freq_A + residual_data$freq_B * (total_A / total_overall)
-        expected_B <- residual_data$freq_A + residual_data$freq_B * (total_B / total_overall)
+        # Correct expected value calculation: (row_total * column_total) / grand_total
+        row_totals <- residual_data$freq_A + residual_data$freq_B
+        expected_A <- row_totals * total_A / total_overall
+        expected_B <- row_totals * total_B / total_overall
         
         resid_A <- (residual_data$freq_A - expected_A) / sqrt(expected_A + 0.5)
         resid_B <- (residual_data$freq_B - expected_B) / sqrt(expected_B + 0.5)
