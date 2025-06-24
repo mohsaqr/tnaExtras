@@ -403,21 +403,29 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       
       # Create residual matrix for heatmap
       if (parameters$statistical) {
-        # For statistical analysis, use standardized residuals
+        # For statistical analysis, use adjusted standardized residuals for better visualization
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         
-        # Calculate standardized residuals
+        # Calculate better residuals for visualization
         total_A <- sum(residual_data$freq_A)
         total_B <- sum(residual_data$freq_B)
         total_overall <- total_A + total_B
         
-        # Correct expected value calculation: (row_total * column_total) / grand_total
-        row_totals <- residual_data$freq_A + residual_data$freq_B
-        expected_A <- row_totals * total_A / total_overall
-        expected_B <- row_totals * total_B / total_overall
+        # Calculate proportions within each group
+        prop_A <- residual_data$freq_A / total_A
+        prop_B <- residual_data$freq_B / total_B
         
-        resid_A <- (residual_data$freq_A - expected_A) / sqrt(expected_A + 0.5)
-        resid_B <- (residual_data$freq_B - expected_B) / sqrt(expected_B + 0.5)
+        # Use standardized proportion differences (z-score like)
+        # This shows how much each pattern deviates from equal representation
+        overall_prop <- (residual_data$freq_A + residual_data$freq_B) / total_overall
+        
+        # Calculate standard error for proportion difference
+        se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
+        se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
+        
+        # Standardized deviations from expected proportion
+        resid_A <- (prop_A - overall_prop) / se_A
+        resid_B <- (prop_B - overall_prop) / se_B
         
         residual_matrix <- cbind(resid_A, resid_B)
       } else {
@@ -651,21 +659,29 @@ plot.compare_sequences <- function(x, ...) {
       
       # Create residual matrix for heatmap
       if (parameters$statistical) {
-        # For statistical analysis, use standardized residuals
+        # For statistical analysis, use adjusted standardized residuals for better visualization
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         
-        # Calculate standardized residuals
+        # Calculate better residuals for visualization
         total_A <- sum(residual_data$freq_A)
         total_B <- sum(residual_data$freq_B)
         total_overall <- total_A + total_B
         
-        # Correct expected value calculation: (row_total * column_total) / grand_total
-        row_totals <- residual_data$freq_A + residual_data$freq_B
-        expected_A <- row_totals * total_A / total_overall
-        expected_B <- row_totals * total_B / total_overall
+        # Calculate proportions within each group
+        prop_A <- residual_data$freq_A / total_A
+        prop_B <- residual_data$freq_B / total_B
         
-        resid_A <- (residual_data$freq_A - expected_A) / sqrt(expected_A + 0.5)
-        resid_B <- (residual_data$freq_B - expected_B) / sqrt(expected_B + 0.5)
+        # Use standardized proportion differences (z-score like)
+        # This shows how much each pattern deviates from equal representation
+        overall_prop <- (residual_data$freq_A + residual_data$freq_B) / total_overall
+        
+        # Calculate standard error for proportion difference
+        se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
+        se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
+        
+        # Standardized deviations from expected proportion
+        resid_A <- (prop_A - overall_prop) / se_A
+        resid_B <- (prop_B - overall_prop) / se_B
         
         residual_matrix <- cbind(resid_A, resid_B)
       } else {
