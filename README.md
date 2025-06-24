@@ -1,4 +1,4 @@
-# tnatest: Temporal Network Analysis and Sequential Pattern Detection
+# tnatest: Transition Network Analysis and Sequential Pattern Detection
 
 A comprehensive R package for analyzing temporal patterns in sequential data. This package provides tools for sequence comparison, pattern analysis, and computation of sequence-level indices with focus on complexity systems, Markov chain dynamics, and temporal network analysis.
 
@@ -19,7 +19,7 @@ You can install the development version of tnatest from GitHub:
 install.packages("devtools")
 
 # Install tnatest from GitHub
-devtools::install_github("yourusername/tnatest")
+devtools::install_github("mohsaqr/tnatest")
 ```
 
 ## Main Functions
