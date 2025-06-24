@@ -87,10 +87,6 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     stop("'data' cannot be empty", call. = FALSE)
   }
   
-  if (length(group) != nrow(data)) {
-    stop("'group' must have the same length as number of rows in 'data'", call. = FALSE)
-  }
-  
   if (!is.numeric(min_length) || !is.numeric(max_length) || min_length < 1 || max_length < min_length) {
     stop("'min_length' and 'max_length' must be positive integers with min_length <= max_length", call. = FALSE)
   }
