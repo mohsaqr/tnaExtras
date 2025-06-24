@@ -118,8 +118,8 @@ patterns <- analyze_patterns(data,
                            max_length = 5)
 
 # 2. Statistical Sequence Comparison  
-comparison <- compare_sequences(data[,-which(names(data) == "Group")], 
-                              data$Group,
+comparison <- compare_sequences(data, 
+                             "Group",
                               statistical = TRUE)
 
 # 3. Sequence Indices
