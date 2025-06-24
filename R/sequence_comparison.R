@@ -26,8 +26,9 @@
 #'
 #' @param data A data frame containing sequence data in wide format, where each row
 #'   represents a sequence and each column represents a time point
-#' @param group A vector indicating group membership for each sequence. Must have the
-#'   same length as the number of rows in data
+#' @param group Column name or index containing group information, or a vector indicating 
+#'   group membership for each sequence. If data contains a group column, specify column 
+#'   name (e.g., "Group") or pass as vector (e.g., data$Group)
 #' @param min_length Minimum subsequence length to analyze (default: 2)
 #' @param max_length Maximum subsequence length to analyze (default: 5)
 #' @param top_n Number of top patterns to return and display (default: 10)
@@ -54,19 +55,18 @@
 #' @examples
 #' \dontrun{
 #' # Load example data
-#' data <- data.frame(
-#'   T1 = c("plan", "discuss", "monitor"),
-#'   T2 = c("consensus", "emotion", "plan"),
-#'   T3 = c("discuss", "plan", "consensus"),
-#'   group = c("A", "B", "A")
-#' )
+#' data(seqdata)
 #' 
-#' # Basic analysis
-#' result <- compare_sequences(data[1:3], data$group)
+#' # Basic analysis using column name
+#' result <- compare_sequences(seqdata, "Group")
+#' print(result)
+#' 
+#' # Basic analysis using vector
+#' result <- compare_sequences(seqdata, seqdata$Group)
 #' print(result)
 #' 
 #' # Statistical analysis
-#' result <- compare_sequences(data[1:3], data$group, statistical = TRUE)
+#' result <- compare_sequences(seqdata, "Group", statistical = TRUE)
 #' }
 #'
 #' @export
@@ -115,8 +115,33 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   # DATA PREPROCESSING
   # =====================================================================
   
+  # Handle group parameter - can be column name or vector
+  if (is.character(group) && length(group) == 1) {
+    # group is a column name
+    if (!group %in% names(data)) {
+      stop("Group column '", group, "' not found in data", call. = FALSE)
+    }
+    group_vector <- data[[group]]
+    # Remove group column from data
+    data <- data[, !names(data) %in% group, drop = FALSE]
+  } else if (is.numeric(group) && length(group) == 1) {
+    # group is a column index
+    if (group < 1 || group > ncol(data)) {
+      stop("Group column index ", group, " is out of range", call. = FALSE)
+    }
+    group_vector <- data[[group]]
+    # Remove group column from data
+    data <- data[, -group, drop = FALSE]
+  } else {
+    # group is a vector
+    if (length(group) != nrow(data)) {
+      stop("'group' must have the same length as number of rows in 'data'", call. = FALSE)
+    }
+    group_vector <- group
+  }
+  
   # Convert group to factor and validate
-  group_factor <- as.factor(group)
+  group_factor <- as.factor(group_vector)
   groups <- levels(group_factor)
   
   if (length(groups) != 2) {
