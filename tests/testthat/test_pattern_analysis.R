@@ -1,525 +1,182 @@
-# =============================================================================
-# COMPREHENSIVE TESTS FOR PATTERN ANALYSIS FUNCTION
-# =============================================================================
 # Test suite for analyze_patterns() function
-# Tests pattern detection, transition analysis, and comprehensive pattern mining
 
-# Load the function
-source("functions/pattern_analysis.R")
-
-# =============================================================================
-# TEST DATA PREPARATION
-# =============================================================================
-
-cat("=== PATTERN ANALYSIS TESTING SUITE ===\n\n")
-
-# Create test data with known patterns
-test_data <- data.frame(
+# Test data (simplified from original for brevity in this refactoring example)
+test_data_pattern <- data.frame(
   T1 = c("Active", "Average", "Disengaged", "Active", "Average"),
-  T2 = c("Active", "Active", "Disengaged", "Average", "Average"),
-  T3 = c("Average", "Active", "Average", "Average", "Active"),
+  T2 = c("Active", "Active", "Disengaged", "Active", "Average"),
+  T3 = c("Average", "Active", "Average", "Disengaged", "Active"),
   T4 = c("Average", "Disengaged", "Average", "Disengaged", "Active"),
-  T5 = c("Disengaged", "Disengaged", "Active", "Active", "Disengaged")
-)
-
-# Pattern-rich data for comprehensive testing
-pattern_rich_data <- data.frame(
-  T1 = rep(c("A", "B", "C"), each = 5),
-  T2 = rep(c("A", "B", "A"), each = 5),
-  T3 = rep(c("B", "A", "B"), each = 5),
-  T4 = rep(c("C", "C", "A"), each = 5),
-  T5 = rep(c("A", "A", "C"), each = 5),
-  T6 = rep(c("B", "C", "B"), each = 5)
+  T5 = c("Disengaged", "Disengaged", "Active", "Active", "Active"),
+  Group = c("A", "A", "B", "B", "A") # Added group for some tests
 )
 
 # Edge case data
 single_pattern_data <- data.frame(
-  T1 = rep("A", 5),
-  T2 = rep("A", 5),
-  T3 = rep("A", 5)
+  T1 = rep("A", 5), T2 = rep("A", 5), T3 = rep("A", 5),
+  Group = rep("X", 5)
 )
 
-# Missing data
-missing_data <- data.frame(
-  T1 = c("A", NA, "C", "A", "B"),
-  T2 = c("A", "B", NA, "B", "B"),
-  T3 = c("B", "B", "C", NA, "C"),
-  T4 = c("C", "C", "A", "A", NA)
-)
+context("Pattern Analysis: analyze_patterns")
 
-# =============================================================================
-# TEST FUNCTIONS
-# =============================================================================
+test_that("Basic functionality and output structure are correct", {
+  result <- analyze_patterns(test_data_pattern, group_col = "Group", min_char_length_state = 1)
 
-test_basic_functionality <- function() {
-  cat("1. BASIC FUNCTIONALITY TEST\n")
-  cat("===========================\n")
-  
-  # Test basic analyze_patterns function
-  result <- analyze_patterns(test_data, pattern_types = "all")
-  
-  # Check main structure
-  expected_components <- c("summary", "patterns", "transitions", "spells", "states")
-  missing_components <- setdiff(expected_components, names(result))
-  
-  if (length(missing_components) > 0) {
-    cat("❌ MISSING COMPONENTS:", paste(missing_components, collapse = ", "), "\n")
-  } else {
-    cat("✅ All main components present\n")
-  }
-  
-  # Check summary
-  if (!is.null(result$summary)) {
-    cat("✅ Summary generated\n")
-    if (is.list(result$summary)) {
-      cat("✅ Summary contains:", length(result$summary), "elements\n")
-    }
-  } else {
-    cat("❌ Summary missing\n")
-  }
-  
-  # Check patterns
-  if (!is.null(result$patterns)) {
-    cat("✅ Patterns detected\n")
-    if (is.list(result$patterns) && length(result$patterns) > 0) {
-      cat("✅ Pattern types found:", paste(names(result$patterns), collapse = ", "), "\n")
-    }
-  } else {
-    cat("❌ Patterns missing\n")
-  }
-  
-  cat("\n")
-  return(result)
-}
+  expected_components <- c("support", "lift", "confidence", "effect_size", "metadata")
+  expect_true(all(expected_components %in% names(result)),
+              info = "All main measure components should be present.")
+  expect_s3_class(result, "pattern_analysis") # Check class
 
-test_pattern_detection <- function() {
-  cat("2. PATTERN DETECTION TEST\n")
-  cat("=========================\n")
-  
-  # Test with pattern-rich data
-  result <- analyze_patterns(pattern_rich_data, pattern_types = "all")
-  
-  # Check subsequence patterns
-  if (!is.null(result$patterns$subsequences)) {
-    subseq <- result$patterns$subsequences
-    cat("✅ Subsequence patterns found:", length(subseq), "\n")
-    
-    if (length(subseq) > 0) {
-      cat("✅ Example subsequences:\n")
-      for (i in 1:min(3, length(subseq))) {
-        cat("   ", names(subseq)[i], ":", subseq[[i]], "\n")
-      }
-    }
-  } else {
-    cat("❌ No subsequence patterns found\n")
-  }
-  
-  # Check cyclical patterns
-  if (!is.null(result$patterns$cyclical)) {
-    cyclical <- result$patterns$cyclical
-    cat("✅ Cyclical patterns analysis completed\n")
-    if (is.numeric(cyclical)) {
-      cat("✅ Cyclical strength:", round(cyclical, 4), "\n")
-    }
-  } else {
-    cat("❌ Cyclical patterns analysis missing\n")
-  }
-  
-  # Check repetitive patterns
-  if (!is.null(result$patterns$repetitive)) {
-    repetitive <- result$patterns$repetitive
-    cat("✅ Repetitive patterns found:", length(repetitive), "\n")
-  } else {
-    cat("❌ Repetitive patterns missing\n")
-  }
-  
-  cat("\n")
-  return(result)
-}
+  # Check metadata
+  expect_type(result$metadata, "list")
+  # The following check for n_patterns in metadata might need refinement.
+  # It counts unique states in the patterns found in the support table.
+  # This is a proxy and might not perfectly match metadata$n_patterns if that counts unique n-grams before measure calculation.
+  # For now, let's check if it's a positive integer.
+  expect_true(result$metadata$n_patterns >= 0)
+})
 
-test_transition_analysis <- function() {
-  cat("3. TRANSITION ANALYSIS TEST\n")
-  cat("===========================\n")
-  
-  result <- analyze_patterns(test_data, pattern_types = "all")
-  
-  # Check transition matrix
-  if (!is.null(result$transitions$matrix)) {
-    trans_matrix <- result$transitions$matrix
-    cat("✅ Transition matrix generated\n")
-    cat("✅ Matrix dimensions:", paste(dim(trans_matrix), collapse = "x"), "\n")
-    
-    # Check if it's a proper transition matrix
-    if (is.matrix(trans_matrix) && nrow(trans_matrix) > 0) {
-      total_transitions <- sum(trans_matrix)
-      cat("✅ Total transitions recorded:", total_transitions, "\n")
-      
-      # Check row sums (should represent outgoing transitions)
-      row_sums <- rowSums(trans_matrix)
-      cat("✅ States with outgoing transitions:", sum(row_sums > 0), "\n")
-    }
-  } else {
-    cat("❌ Transition matrix missing\n")
-  }
-  
-  # Check transition probabilities
-  if (!is.null(result$transitions$probabilities)) {
-    trans_probs <- result$transitions$probabilities
-    cat("✅ Transition probabilities calculated\n")
-    
-    if (is.matrix(trans_probs)) {
-      # Check if probabilities sum to 1 for each row (approximately)
-      row_sums <- rowSums(trans_probs, na.rm = TRUE)
-      valid_rows <- sum(abs(row_sums - 1) < 0.01, na.rm = TRUE)
-      cat("✅ Valid probability rows:", valid_rows, "out of", nrow(trans_probs), "\n")
-    }
-  } else {
-    cat("❌ Transition probabilities missing\n")
-  }
-  
-  # Check transition statistics
-  if (!is.null(result$transitions$statistics)) {
-    trans_stats <- result$transitions$statistics
-    cat("✅ Transition statistics calculated\n")
-    if (is.list(trans_stats)) {
-      cat("✅ Statistics include:", paste(names(trans_stats), collapse = ", "), "\n")
-    }
-  } else {
-    cat("❌ Transition statistics missing\n")
-  }
-  
-  cat("\n")
-  return(result)
-}
+test_that("extract_ngrams handles min_char_length_state correctly", {
+  sequence1 <- "A-B-CC-DDD-E"
+  expect_equal(extract_ngrams(sequence1, n = 2, min_char_length_state = 1),
+               c("A-B", "B-CC", "CC-DDD", "DDD-E"))
+  expect_equal(extract_ngrams(sequence1, n = 2, min_char_length_state = 2),
+               c("CC-DDD")) # A, B, E are filtered
+  expect_equal(extract_ngrams("A-B", n = 2, min_char_length_state = 2), character(0))
+  expect_equal(extract_ngrams(sequence1, n = 1, min_char_length_state = 1),
+               c("A", "B", "CC", "DDD", "E"))
+  expect_equal(extract_ngrams(sequence1, n = 1, min_char_length_state = 3),
+               c("DDD"))
+})
 
-test_spell_analysis <- function() {
-  cat("4. SPELL ANALYSIS TEST\n")
-  cat("======================\n")
-  
-  result <- analyze_patterns(test_data, pattern_types = "all")
-  
-  # Check spell durations
-  if (!is.null(result$spells$durations)) {
-    durations <- result$spells$durations
-    cat("✅ Spell durations calculated\n")
-    
-    if (is.list(durations) && length(durations) > 0) {
-      cat("✅ States with spells:", paste(names(durations), collapse = ", "), "\n")
-      
-      # Check duration statistics
-      for (state in names(durations)) {
-        if (length(durations[[state]]) > 0) {
-          avg_duration <- mean(durations[[state]])
-          max_duration <- max(durations[[state]])
-          cat("   ", state, "- Avg:", round(avg_duration, 2), "Max:", max_duration, "\n")
-        }
-      }
-    }
-  } else {
-    cat("❌ Spell durations missing\n")
-  }
-  
-  # Check spell statistics
-  if (!is.null(result$spells$statistics)) {
-    spell_stats <- result$spells$statistics
-    cat("✅ Spell statistics calculated\n")
-    
-    if (is.list(spell_stats)) {
-      cat("✅ Statistics include:", paste(names(spell_stats), collapse = ", "), "\n")
-    }
-  } else {
-    cat("❌ Spell statistics missing\n")
-  }
-  
-  cat("\n")
-  return(result)
-}
+test_that("compute_lift_measures calculates lift correctly", {
+  # Test case:
+  # Group A: 10 sequences, Pattern X appears in 5. P(X|A) = 0.5
+  # Group B: 10 sequences, Pattern X appears in 2. P(X|B) = 0.2
+  # Total: 20 sequences, Pattern X appears in 7. P(X) = 7/20 = 0.35
+  # Lift A = P(X|A) / P(X) = 0.5 / 0.35 = 1.42857
+  # Lift B = P(X|B) / P(X) = 0.2 / 0.35 = 0.57143
 
-test_state_analysis <- function() {
-  cat("5. STATE ANALYSIS TEST\n")
-  cat("======================\n")
-  
-  result <- analyze_patterns(test_data, pattern_types = "all")
-  
-  # Check state frequencies
-  if (!is.null(result$states$frequencies)) {
-    frequencies <- result$states$frequencies
-    cat("✅ State frequencies calculated\n")
-    
-    if (is.table(frequencies) || is.numeric(frequencies)) {
-      cat("✅ States found:", paste(names(frequencies), collapse = ", "), "\n")
-      cat("✅ Total observations:", sum(frequencies), "\n")
-    }
-  } else {
-    cat("❌ State frequencies missing\n")
-  }
-  
-  # Check state proportions
-  if (!is.null(result$states$proportions)) {
-    proportions <- result$states$proportions
-    cat("✅ State proportions calculated\n")
-    
-    if (is.numeric(proportions)) {
-      # Check if proportions sum to 1
-      total_prop <- sum(proportions, na.rm = TRUE)
-      cat("✅ Proportions sum to:", round(total_prop, 4), "\n")
-    }
-  } else {
-    cat("❌ State proportions missing\n")
-  }
-  
-  # Check state statistics
-  if (!is.null(result$states$statistics)) {
-    state_stats <- result$states$statistics
-    cat("✅ State statistics calculated\n")
-    
-    if (is.list(state_stats)) {
-      cat("✅ Statistics include:", paste(names(state_stats), collapse = ", "), "\n")
-    }
-  } else {
-    cat("❌ State statistics missing\n")
-  }
-  
-  cat("\n")
-  return(result)
-}
+  patterns_lift <- c("PatternX")
+  group_A_seqs_lift <- c(rep("PatternX", 5), rep("Other", 5)) # 10 seqs
+  group_B_seqs_lift <- c(rep("PatternX", 2), rep("Other", 8)) # 10 seqs
 
-test_edge_cases <- function() {
-  cat("6. EDGE CASES TEST\n")
-  cat("==================\n")
-  
-  # Test single pattern data
-  cat("Testing single pattern data...\n")
-  tryCatch({
-    single_result <- analyze_patterns(single_pattern_data, pattern_types = "all")
-    cat("✅ Single pattern data handled successfully\n")
-    
-    # Check that it handles uniformity correctly
-    if (!is.null(single_result$states$frequencies)) {
-      unique_states <- length(single_result$states$frequencies)
-      cat("✅ Unique states detected:", unique_states, "\n")
-    }
-    
-  }, error = function(e) {
-    cat("❌ Single pattern data error:", e$message, "\n")
-  })
-  
-  # Test missing data
-  cat("\nTesting missing data...\n")
-  tryCatch({
-    missing_result <- analyze_patterns(missing_data, pattern_types = "all")
-    cat("✅ Missing data handled successfully\n")
-    
-    # Check data cleaning
-    if (!is.null(missing_result$summary)) {
-      cat("✅ Missing data analysis completed\n")
-    }
-    
-  }, error = function(e) {
-    cat("❌ Missing data error:", e$message, "\n")
-  })
-  
-  # Test empty/minimal data
-  cat("\nTesting minimal data...\n")
-  minimal_data <- data.frame(
-    T1 = c("A", "B"),
-    T2 = c("A", "B")
-  )
-  
-  tryCatch({
-    minimal_result <- analyze_patterns(minimal_data, pattern_types = "all")
-    cat("✅ Minimal data handled successfully\n")
-  }, error = function(e) {
-    cat("✅ Minimal data error handled:", e$message, "\n")
-  })
-  
-  cat("\n")
-}
+  lift_results <- compute_lift_measures(patterns_lift, group_A_seqs_lift, group_B_seqs_lift)
 
-test_pattern_types <- function() {
-  cat("7. PATTERN TYPES TEST\n")
-  cat("=====================\n")
-  
-  # Test specific pattern types
-  pattern_types_to_test <- c("subsequences", "cyclical", "repetitive", "transitions")
-  
-  for (pattern_type in pattern_types_to_test) {
-    cat("Testing pattern type:", pattern_type, "\n")
-    
-    tryCatch({
-      result <- analyze_patterns(pattern_rich_data, pattern_types = pattern_type)
-      
-      if (!is.null(result$patterns)) {
-        cat("✅", pattern_type, "analysis completed\n")
-      } else {
-        cat("❌", pattern_type, "analysis failed\n")
-      }
-      
-    }, error = function(e) {
-      cat("❌", pattern_type, "error:", e$message, "\n")
-    })
-  }
-  
-  # Test "all" pattern types
-  cat("\nTesting 'all' pattern types...\n")
-  tryCatch({
-    all_result <- analyze_patterns(pattern_rich_data, pattern_types = "all")
-    cat("✅ All pattern types analysis completed\n")
-    
-    if (!is.null(all_result$patterns)) {
-      detected_types <- names(all_result$patterns)
-      cat("✅ Pattern types detected:", paste(detected_types, collapse = ", "), "\n")
-    }
-    
-  }, error = function(e) {
-    cat("❌ All pattern types error:", e$message, "\n")
-  })
-  
-  cat("\n")
-}
+  expect_equal(lift_results$lift_A[1], (5/10) / (7/20), tolerance = 1e-5)
+  expect_equal(lift_results$lift_B[1], (2/10) / (7/20), tolerance = 1e-5)
 
-test_performance <- function() {
-  cat("8. PERFORMANCE TEST\n")
-  cat("===================\n")
-  
-  # Create larger dataset
-  n_sequences <- 50
-  n_timepoints <- 15
-  states <- c("A", "B", "C", "D")
-  
-  large_data <- data.frame(
-    matrix(
-      sample(states, n_sequences * n_timepoints, replace = TRUE),
-      nrow = n_sequences,
-      ncol = n_timepoints
-    )
-  )
-  colnames(large_data) <- paste0("T", 1:n_timepoints)
-  
-  # Time the analysis
-  start_time <- Sys.time()
-  large_result <- analyze_patterns(large_data, pattern_types = "all")
-  end_time <- Sys.time()
-  
-  execution_time <- as.numeric(end_time - start_time)
-  
-  cat("Dataset size:", n_sequences, "sequences x", n_timepoints, "time points\n")
-  cat("✅ Execution time:", round(execution_time, 3), "seconds\n")
-  cat("✅ Time per sequence:", round(execution_time / n_sequences * 1000, 2), "ms\n")
-  
-  # Check results
-  if (!is.null(large_result$patterns)) {
-    cat("✅ Patterns detected:", length(large_result$patterns), "types\n")
-  }
-  
-  if (!is.null(large_result$transitions$matrix)) {
-    total_transitions <- sum(large_result$transitions$matrix)
-    cat("✅ Transitions recorded:", total_transitions, "\n")
-  }
-  
-  cat("\n")
-  return(large_result)
-}
+  # Test case: Pattern only in Group A
+  patterns_lift2 <- c("PatternY")
+  group_A_seqs_lift2 <- c(rep("PatternY", 3), rep("Other", 7))
+  group_B_seqs_lift2 <- rep("Other", 10)
 
-test_output_consistency <- function() {
-  cat("9. OUTPUT CONSISTENCY TEST\n")
-  cat("==========================\n")
-  
-  # Run multiple times to check consistency
-  results <- list()
-  
-  for (i in 1:3) {
-    results[[i]] <- analyze_patterns(test_data, pattern_types = "all")
-  }
-  
-  # Check that key statistics are consistent
-  cat("Testing consistency across multiple runs...\n")
-  
-  # Check state frequencies consistency
-  freq_consistent <- TRUE
-  if (!is.null(results[[1]]$states$frequencies)) {
-    base_freq <- results[[1]]$states$frequencies
-    
-    for (i in 2:3) {
-      if (!identical(base_freq, results[[i]]$states$frequencies)) {
-        freq_consistent <- FALSE
-        break
-      }
-    }
-  }
-  
-  cat("✅ State frequencies consistent:", freq_consistent, "\n")
-  
-  # Check transition matrix consistency
-  trans_consistent <- TRUE
-  if (!is.null(results[[1]]$transitions$matrix)) {
-    base_trans <- results[[1]]$transitions$matrix
-    
-    for (i in 2:3) {
-      if (!identical(base_trans, results[[i]]$transitions$matrix)) {
-        trans_consistent <- FALSE
-        break
-      }
-    }
-  }
-  
-  cat("✅ Transition matrices consistent:", trans_consistent, "\n")
-  
-  # Check summary consistency
-  summary_consistent <- TRUE
-  if (!is.null(results[[1]]$summary)) {
-    base_summary <- results[[1]]$summary
-    
-    for (i in 2:3) {
-      # Compare key summary elements
-      if (length(base_summary) != length(results[[i]]$summary)) {
-        summary_consistent <- FALSE
-        break
-      }
-    }
-  }
-  
-  cat("✅ Summaries consistent:", summary_consistent, "\n")
-  
-  cat("\n")
-  return(results)
-}
+  lift_results2 <- compute_lift_measures(patterns_lift2, group_A_seqs_lift2, group_B_seqs_lift2)
+  expect_equal(lift_results2$lift_A[1], (3/10) / (3/20), tolerance = 1e-5)
+  expect_equal(lift_results2$lift_B[1], 0.0 / (3/20), tolerance = 1e-5) # P(Y|B)/P(Y) = 0 / P(Y) = 0
 
-# =============================================================================
-# RUN ALL TESTS
-# =============================================================================
+  # Test case: Pattern appears in no group (count_total = 0 should be handled by loop skip in main func)
+  # If a pattern is passed to compute_lift_measures that has zero total count,
+  # prob_pattern will be 0. lift_A/B will be prop_A/1e-10 or prop_B/1e-10.
+  # If count_A and count_B are also 0, then prop_A/B are 0, so lift_A/B are 0. This is fine.
+  patterns_lift3 <- c("PatternZ")
+  group_A_seqs_lift3 <- rep("Other", 10)
+  group_B_seqs_lift3 <- rep("Other", 10)
+  lift_results3 <- compute_lift_measures(patterns_lift3, group_A_seqs_lift3, group_B_seqs_lift3)
+  expect_equal(lift_results3$lift_A[1], 0.0, tolerance=1e-5) # 0 / (0 + 1e-10)
+  expect_equal(lift_results3$lift_B[1], 0.0, tolerance=1e-5)
+})
 
-run_all_tests <- function() {
-  cat("PATTERN ANALYSIS COMPREHENSIVE TEST SUITE\n")
-  cat("==========================================\n\n")
-  
-  # Run all tests
-  test1_result <- test_basic_functionality()
-  test2_result <- test_pattern_detection()
-  test3_result <- test_transition_analysis()
-  test4_result <- test_spell_analysis()
-  test5_result <- test_state_analysis()
-  test_edge_cases()
-  test_pattern_types()
-  test8_result <- test_performance()
-  test9_result <- test_output_consistency()
-  
-  cat("=== TEST SUITE COMPLETED ===\n")
-  cat("All tests executed successfully!\n")
-  cat("analyze_patterns() function is ready for production use.\n\n")
-  
-  return(list(
-    basic = test1_result,
-    patterns = test2_result,
-    transitions = test3_result,
-    spells = test4_result,
-    states = test5_result,
-    performance = test8_result,
-    consistency = test9_result
-  ))
-}
+test_that("Effect sizes (Cohen's h, Phi) are calculated correctly", {
+  patterns_es <- "PatternP"
+  group_A_es <- c(rep("PatternP", 8), rep("Other", 2)) # 10 seqs, pA = 0.8
+  group_B_es <- c(rep("PatternP", 2), rep("Other", 8)) # 10 seqs, pB = 0.2
 
-# Run the tests
-if (interactive() || !exists("skip_tests")) {
-  test_results <- run_all_tests()
-} 
+  es_results <- compute_effect_sizes(patterns_es, group_A_es, group_B_es)
+
+  h_expected <- 2 * (asin(sqrt(0.8)) - asin(sqrt(0.2)))
+  expect_equal(es_results$cohens_h[1], h_expected, tolerance = 1e-5)
+
+  # ChiSq for [[8,2],[2,8]] (PatternP vs Other, GroupA vs GroupB for sequences)
+  # present_A=8, absent_A=2 (sequences in A not having PatternP)
+  # present_B=2, absent_B=8 (sequences in B not having PatternP)
+  # E_present_A = ( (8+2) * (8+2) ) / 20 = 10 * 10 / 20 = 5
+  # ChiSq = (8-5)^2/5 + (2-5)^2/5 + (2-5)^2/5 + (8-5)^2/5 = 4 * (9/5) = 7.2
+  # Phi = sqrt(ChiSq / N) = sqrt(7.2 / 20) = 0.6
+  expect_equal(es_results$phi_coefficient[1], sqrt(7.2/20), tolerance = 1e-5)
+  expect_equal(es_results$cramers_v[1], sqrt(7.2/20), tolerance = 1e-5)
+})
+
+test_that("Support measures for n=1 patterns (state presence)", {
+  # test_data_pattern Group A: 3 sequences, Group B: 2 sequences
+  # Group A seqs:
+  # 1: Active-Active-Average-Average-Disengaged
+  # 2: Average-Active-Active-Disengaged-Disengaged
+  # 3: Active-Average-Active-Active-Active
+  # Group B seqs:
+  # 4: Disengaged-Disengaged-Average-Average-Active
+  # 5: Active-Average-Disengaged-Active-Active
+
+  # For min_length=1, max_length=1, it means we are looking at individual states.
+  # Support for a state "S" in a group is the proportion of sequences in that group containing "S".
+  result_n1 <- analyze_patterns(test_data_pattern, group_col = "Group",
+                                min_length=1, max_length=1, # Focus on single states
+                                min_frequency = 1,         # Include all states found
+                                min_char_length_state = 1)
+
+  active_support <- result_n1$support[result_n1$support$pattern == "Active",]
+  expect_equal(active_support$support_A, 3/3, info = "Support for Active in Group A") # All 3 Group A seqs have "Active"
+  expect_equal(active_support$support_B, 2/2, info = "Support for Active in Group B") # All 2 Group B seqs have "Active"
+
+  average_support <- result_n1$support[result_n1$support$pattern == "Average",]
+  expect_equal(average_support$support_A, 3/3, info = "Support for Average in Group A") # Seq 1,2,3 of A have Average
+  expect_equal(average_support$support_B, 2/2, info = "Support for Average in Group B") # Seq 1,2 of B have Average
+
+  disengaged_support <- result_n1$support[result_n1$support$pattern == "Disengaged",]
+  expect_equal(disengaged_support$support_A, 2/3, info = "Support for Disengaged in Group A") # Seq 1,2 of A have Disengaged
+  expect_equal(disengaged_support$support_B, 2/2, info = "Support for Disengaged in Group B") # Seq 1,2 of B have Disengaged
+})
+
+test_that("analyze_patterns handles edge cases gracefully", {
+  expect_no_error(analyze_patterns(single_pattern_data, group_col = "Group", min_char_length_state = 1))
+
+  minimal_data <- data.frame(T1 = c("A", "B"), T2 = c("A", "B"), Group = c("X", "Y"))
+  expect_no_error(analyze_patterns(minimal_data, group_col = "Group", min_char_length_state = 1))
+
+  missing_data_df <- data.frame(
+    T1 = c("A", NA, "C", "A", "B"), T2 = c("A", "B", NA, "B", "B"),
+    T3 = c("B", "B", "C", NA, "C"), T4 = c("C", "C", "A", "A", NA),
+    Group = c("P", "P", "Q", "Q", "P"))
+  expect_no_error(analyze_patterns(missing_data_df, group_col = "Group", min_char_length_state = 1))
+
+  # Test case with no valid sequences after processing
+  all_empty_seq_data <- data.frame(T1 = c(NA, ""), T2 = c(NA, ""), Group = c("X","Y"))
+  expect_error(analyze_patterns(all_empty_seq_data, group_col="Group"),
+               "No valid sequences found after processing")
+
+  # Test case with less than 2 groups
+  one_group_data <- data.frame(T1="A", T2="B", Group="X")
+   expect_error(analyze_patterns(one_group_data, group_col="Group"),
+               "Exactly two groups must be present in the data")
+})
+
+test_that("Output is consistent across multiple runs", {
+  consistency_data <- data.frame(
+    T1 = c("A", "B", "A"), T2 = c("B", "A", "A"), Group = c("X", "Y", "X"))
+  result1 <- analyze_patterns(consistency_data, group_col = "Group", min_char_length_state = 1)
+  result2 <- analyze_patterns(consistency_data, group_col = "Group", min_char_length_state = 1)
+
+  expect_identical(result1$support, result2$support)
+  expect_identical(result1$lift, result2$lift)
+  expect_identical(result1$confidence, result2$confidence)
+  expect_identical(result1$effect_size, result2$effect_size)
+  expect_identical(result1$metadata, result2$metadata) # Metadata should also be identical
+})
+
+test_that("Print and summary methods for pattern_analysis objects run", {
+  result <- analyze_patterns(test_data_pattern, group_col = "Group", min_char_length_state = 1)
+  expect_output(print(result), "Pattern Analysis Results")
+  expect_output(summary(result), "Pattern Analysis Summary - SUPPORT Measures")
+  expect_output(summary(result, measure = "lift"), "Pattern Analysis Summary - LIFT Measures")
+  expect_error(summary(result, measure = "nonexistent"),
+               "Measure 'nonexistent' not found. Available: support, lift, confidence, effect_size")
+})

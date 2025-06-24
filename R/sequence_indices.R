@@ -723,70 +723,22 @@ compute_cyclic_strength <- function(states) {
   return(max_strength)
 }
 
-#' Compute attractor state - the state the system is drawn to
+#' Compute attractor state - the state with the highest overall frequency (modal state).
+#' The strength of the attractor is its proportion in the sequence.
 #' @param states Vector of states
-#' @param method Method for combining components: "weighted", "all", or custom vector c(freq_weight, persistence_weight, return_weight)
-#' @param normalize Whether to normalize the final strength (default TRUE)
-compute_attractor_state <- function(states, method = "weighted", normalize = TRUE) {
-  if (length(states) <= 1) {
+compute_attractor_state <- function(states) {
+  if (length(states) == 0) { # Handle empty valid_states case
+    return(list(state = NA_character_, strength = 0))
+  }
+  if (length(states) == 1) {
     return(list(state = states[1], strength = 1))
   }
-  
-  # Determine weights based on method
-  if (is.character(method)) {
-    if (method == "weighted") {
-      weights <- c(freq = 1.0, persistence = 0.5, return = 0.3)
-    } else if (method == "all") {
-      weights <- c(freq = 1.0, persistence = 1.0, return = 1.0)
-    } else {
-      stop("Method must be 'weighted', 'all', or a numeric vector c(freq_weight, persistence_weight, return_weight)")
-    }
-  } else if (is.numeric(method) && length(method) == 3) {
-    weights <- c(freq = method[1], persistence = method[2], return = method[3])
-  } else {
-    stop("Method must be 'weighted', 'all', or a numeric vector c(freq_weight, persistence_weight, return_weight)")
-  }
-  
-  # Attractor state is determined by:
-  # 1. Overall frequency (like modal state)
-  # 2. Tendency to persist when reached
-  # 3. Tendency to return to after leaving
   
   state_counts <- table(states)
   state_props <- state_counts / length(states)
   
-  # For each state, compute its "attractor strength"
-  attractor_strengths <- numeric(length(state_counts))
-  names(attractor_strengths) <- names(state_counts)
-  
-  for (state in names(state_counts)) {
-    # Base strength from frequency
-    freq_strength <- state_props[state]
-    
-    # Persistence strength - how long it lasts when reached
-    state_positions <- which(states == state)
-    if (length(state_positions) > 0) {
-      spells <- compute_state_spells(states, state)
-      persistence_strength <- mean(spells) / length(states)
-    } else {
-      persistence_strength <- 0
-    }
-    
-    # Return strength - how often system returns to this state
-    if (length(state_positions) > 1) {
-      gaps <- diff(state_positions) - 1  # Gaps between occurrences
-      return_strength <- 1 / (1 + mean(gaps))  # Inverse of average gap
-    } else {
-      return_strength <- 0
-    }
-    
-    # Combined attractor strength using specified weights
-    attractor_strengths[state] <- weights["freq"] * freq_strength + 
-                                 weights["persistence"] * persistence_strength + 
-                                 weights["return"] * return_strength
-  }
-  
   # Attractor state is simply the most frequent state (modal state)
+  # In case of ties for max frequency, which.max returns the first one.
   attractor_state <- names(which.max(state_props))
   
   # Attractor strength is simply the proportion of that state

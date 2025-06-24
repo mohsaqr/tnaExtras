@@ -43,6 +43,7 @@
 #' @param test_method Character, statistical test selection (default: "auto").
 #'   Options: "auto", "fisher", "chi.squared"
 #' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5)
+#' @param min_char_length_state Minimum character length for a state to be considered valid during subsequence extraction (default: 1, meaning all non-empty states are considered).
 #'
 #' @return A compare_sequences object containing:
 #' \describe{
@@ -72,7 +73,8 @@
 #' @export
 compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n = 10, 
                              detailed = FALSE, statistical = FALSE, correction = "bonferroni", 
-                             test_method = "auto", min_expected = 5) {
+                             test_method = "auto", min_expected = 5,
+                             min_char_length_state = 1) { # New parameter
   
   # =====================================================================
   # INPUT VALIDATION
@@ -164,14 +166,21 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   # CORE ANALYSIS FUNCTIONS
   # =====================================================================
   
-  extract_subsequences <- function(sequences, n) {
+  extract_subsequences <- function(sequences, n, min_char_length_state_local) { # Renamed to avoid conflict
     if (n < 1) return(character(0))
     
     subsequences <- character(0)
     for (i in seq_len(nrow(sequences))) {
       seq_row <- unlist(sequences[i, ])
-      # Filter out NA, empty strings, and single characters (potential group markers)
-      clean_seq <- seq_row[!is.na(seq_row) & nchar(as.character(seq_row)) > 1]
+      # Filter out NA, empty strings
+      clean_seq_intermediate <- seq_row[!is.na(seq_row) & nzchar(as.character(seq_row))]
+
+      # Filter based on min_char_length_state_local
+      if (min_char_length_state_local > 0) {
+        clean_seq <- clean_seq_intermediate[nchar(as.character(clean_seq_intermediate)) >= min_char_length_state_local]
+      } else {
+        clean_seq <- clean_seq_intermediate
+      }
       
       if (length(clean_seq) >= n) {
         for (j in seq_len(length(clean_seq) - n + 1)) {
@@ -183,10 +192,10 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     return(subsequences)
   }
   
-  analyze_discrimination <- function(seq_A, seq_B, n) {
+  analyze_discrimination <- function(seq_A, seq_B, n, min_char_length_state_local) {
     # Extract subsequences
-    subseq_A <- extract_subsequences(seq_A, n)
-    subseq_B <- extract_subsequences(seq_B, n)
+    subseq_A <- extract_subsequences(seq_A, n, min_char_length_state_local)
+    subseq_B <- extract_subsequences(seq_B, n, min_char_length_state_local)
     
     if (length(subseq_A) == 0 && length(subseq_B) == 0) {
       return(list(n = n, patterns = data.frame(), total_A = 0, total_B = 0, n_patterns = 0))
@@ -233,10 +242,10 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     ))
   }
   
-  analyze_statistical <- function(seq_A, seq_B, n, correction_method, test_method, min_expected) {
+  analyze_statistical <- function(seq_A, seq_B, n, correction_method, test_method, min_expected, min_char_length_state_local) {
     # Extract subsequences
-    subseq_A <- extract_subsequences(seq_A, n)
-    subseq_B <- extract_subsequences(seq_B, n)
+    subseq_A <- extract_subsequences(seq_A, n, min_char_length_state_local)
+    subseq_B <- extract_subsequences(seq_B, n, min_char_length_state_local)
     
     if (length(subseq_A) == 0 && length(subseq_B) == 0) {
       return(list(n = n, patterns = data.frame(), n_patterns = 0, n_significant = 0))
@@ -330,9 +339,10 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   for (n in min_length:max_length) {
     if (statistical) {
       analysis_results[[paste0("length_", n)]] <- analyze_statistical(
-        seq_A, seq_B, n, correction, test_method, min_expected)
+        seq_A, seq_B, n, correction, test_method, min_expected, min_char_length_state_local = min_char_length_state)
     } else {
-      analysis_results[[paste0("length_", n)]] <- analyze_discrimination(seq_A, seq_B, n)
+      analysis_results[[paste0("length_", n)]] <- analyze_discrimination(
+        seq_A, seq_B, n, min_char_length_state_local = min_char_length_state)
     }
   }
   
@@ -407,22 +417,43 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         
         # Calculate standardized residuals
-        total_A <- sum(residual_data$freq_A)
-        total_B <- sum(residual_data$freq_B)
-        total_overall <- total_A + total_B
+        # These totals are for the 'top_n' patterns being plotted
+        total_freq_A_top_n <- sum(residual_data$freq_A)
+        total_freq_B_top_n <- sum(residual_data$freq_B)
+        grand_total_top_n <- total_freq_A_top_n + total_freq_B_top_n
         
-        expected_A <- residual_data$freq_A + residual_data$freq_B * (total_A / total_overall)
-        expected_B <- residual_data$freq_A + residual_data$freq_B * (total_B / total_overall)
-        
-        resid_A <- (residual_data$freq_A - expected_A) / sqrt(expected_A + 0.5)
-        resid_B <- (residual_data$freq_B - expected_B) / sqrt(expected_B + 0.5)
-        
+        if (grand_total_top_n == 0) { # Avoid division by zero if no patterns
+            resid_A <- rep(0, nrow(residual_data))
+            resid_B <- rep(0, nrow(residual_data))
+        } else {
+            expected_A_list <- numeric(nrow(residual_data))
+            expected_B_list <- numeric(nrow(residual_data))
+
+            for (k_pattern in 1:nrow(residual_data)) {
+                pattern_total_freq <- residual_data$freq_A[k_pattern] + residual_data$freq_B[k_pattern]
+                expected_A_list[k_pattern] <- (pattern_total_freq * total_freq_A_top_n) / grand_total_top_n
+                expected_B_list[k_pattern] <- (pattern_total_freq * total_freq_B_top_n) / grand_total_top_n
+            }
+
+            # Standardized residuals: (Observed - Expected) / sqrt(Expected)
+            # Adding 0.5 to Expected in denominator to avoid issues with Expected = 0
+            resid_A <- (residual_data$freq_A - expected_A_list) / sqrt(expected_A_list + 0.5)
+            resid_B <- (residual_data$freq_B - expected_B_list) / sqrt(expected_B_list + 0.5)
+        }
         residual_matrix <- cbind(resid_A, resid_B)
       } else {
         # For discrimination analysis, use proportion differences
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
-        prop_diff <- residual_data$prop_diff
-        residual_matrix <- cbind(prop_diff, -prop_diff)
+        if (nrow(residual_data) > 0 && "prop_diff" %in% names(residual_data)) {
+            prop_diff <- residual_data$prop_diff
+            residual_matrix <- cbind(prop_diff, -prop_diff)
+        } else {
+            # Fallback if prop_diff is not available or no data
+            residual_matrix <- matrix(0, nrow = nrow(residual_data), ncol = 2)
+            if (nrow(residual_data) > 0) {
+                 rownames(residual_matrix) <- residual_data$pattern
+            }
+        }
       }
       
       rownames(residual_matrix) <- residual_data$pattern
@@ -526,7 +557,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       statistical = statistical,
       correction = correction,
       test_method = test_method,
-      min_expected = min_expected
+      min_expected = min_expected,
+      min_char_length_state = min_char_length_state # Added to parameters
     ),
     stats = summary_stats
   )
@@ -653,22 +685,43 @@ plot.compare_sequences <- function(x, ...) {
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         
         # Calculate standardized residuals
-        total_A <- sum(residual_data$freq_A)
-        total_B <- sum(residual_data$freq_B)
-        total_overall <- total_A + total_B
-        
-        expected_A <- residual_data$freq_A + residual_data$freq_B * (total_A / total_overall)
-        expected_B <- residual_data$freq_A + residual_data$freq_B * (total_B / total_overall)
-        
-        resid_A <- (residual_data$freq_A - expected_A) / sqrt(expected_A + 0.5)
-        resid_B <- (residual_data$freq_B - expected_B) / sqrt(expected_B + 0.5)
-        
+        # These totals are for the 'top_n' patterns being plotted
+        total_freq_A_top_n <- sum(residual_data$freq_A)
+        total_freq_B_top_n <- sum(residual_data$freq_B)
+        grand_total_top_n <- total_freq_A_top_n + total_freq_B_top_n
+
+        if (grand_total_top_n == 0) { # Avoid division by zero if no patterns
+            resid_A <- rep(0, nrow(residual_data))
+            resid_B <- rep(0, nrow(residual_data))
+        } else {
+            expected_A_list <- numeric(nrow(residual_data))
+            expected_B_list <- numeric(nrow(residual_data))
+
+            for (k_pattern in 1:nrow(residual_data)) {
+                pattern_total_freq <- residual_data$freq_A[k_pattern] + residual_data$freq_B[k_pattern]
+                expected_A_list[k_pattern] <- (pattern_total_freq * total_freq_A_top_n) / grand_total_top_n
+                expected_B_list[k_pattern] <- (pattern_total_freq * total_freq_B_top_n) / grand_total_top_n
+            }
+
+            # Standardized residuals: (Observed - Expected) / sqrt(Expected)
+            # Adding 0.5 to Expected in denominator to avoid issues with Expected = 0
+            resid_A <- (residual_data$freq_A - expected_A_list) / sqrt(expected_A_list + 0.5)
+            resid_B <- (residual_data$freq_B - expected_B_list) / sqrt(expected_B_list + 0.5)
+        }
         residual_matrix <- cbind(resid_A, resid_B)
       } else {
         # For discrimination analysis, use proportion differences
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
-        prop_diff <- residual_data$prop_diff
-        residual_matrix <- cbind(prop_diff, -prop_diff)
+        if (nrow(residual_data) > 0 && "prop_diff" %in% names(residual_data)) {
+            prop_diff <- residual_data$prop_diff
+            residual_matrix <- cbind(prop_diff, -prop_diff)
+        } else {
+            # Fallback if prop_diff is not available or no data
+            residual_matrix <- matrix(0, nrow = nrow(residual_data), ncol = 2)
+            if (nrow(residual_data) > 0) {
+                 rownames(residual_matrix) <- residual_data$pattern
+            }
+        }
       }
       
       rownames(residual_matrix) <- residual_data$pattern

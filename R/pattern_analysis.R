@@ -24,12 +24,16 @@
 #' 
 #' @param sequence Character string with elements separated by "-"
 #' @param n Integer specifying the n-gram length
+#' @param min_char_length_state Minimum character length for a state to be considered valid (default: 2)
 #' @return Character vector of n-grams
-extract_ngrams <- function(sequence, n) {
+extract_ngrams <- function(sequence, n, min_char_length_state = 2) {
   if (nchar(sequence) == 0) return(character(0))
   
   seq_parts <- unlist(strsplit(sequence, "-"))
-  seq_parts <- seq_parts[nchar(seq_parts) > 1]  # Filter single characters
+  # Filter based on min_char_length_state
+  if (min_char_length_state > 0) {
+    seq_parts <- seq_parts[nchar(seq_parts) >= min_char_length_state]
+  }
   
   if (length(seq_parts) < n) return(character(0))
   
@@ -224,30 +228,32 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     expected_A <- count_total * (n_A / n_total)
     expected_B <- count_total * (n_B / n_total)
     
-    # Observed proportions
-    prop_A <- count_A / n_A
-    prop_B <- count_B / n_B
+    # Observed proportions P(Pattern | Group)
+    prop_A <- count_A / n_A # P(Pattern | Group A)
+    prop_B <- count_B / n_B # P(Pattern | Group B)
     
-    # Expected proportions under independence
-    expected_prop_A <- count_total / n_total * (n_A / n_total)
-    expected_prop_B <- count_total / n_total * (n_B / n_total)
+    # Overall probability of the pattern P(Pattern)
+    prob_pattern <- count_total / n_total
     
-    # Lift = observed / expected (with small constant to avoid division by zero)
-    lift_A <- prop_A / (expected_prop_A + 1e-10)
-    lift_B <- prop_B / (expected_prop_B + 1e-10)
+    # Lift = P(Pattern | Group) / P(Pattern)
+    # Add small constant to prob_pattern to avoid division by zero if pattern never occurs
+    # (though loop skips if count_total == 0, this is for safety if n_total is huge and count_total is small)
+    lift_A <- prop_A / (prob_pattern + 1e-10)
+    lift_B <- prop_B / (prob_pattern + 1e-10)
     
     results$observed_A[i] <- count_A
     results$observed_B[i] <- count_B
-    results$expected_A[i] <- expected_A
-    results$expected_B[i] <- expected_B
+    results$expected_A[i] <- n_A * prob_pattern # Expected count in Group A if pattern is independent of group
+    results$expected_B[i] <- n_B * prob_pattern # Expected count in Group B
     results$lift_A[i] <- lift_A
     results$lift_B[i] <- lift_B
     
     # Lift ratio (capped to avoid extreme values)
-    lift_ratio <- pmin(pmax(lift_A / (lift_B + 1e-10), 0.01), 100)
-    results$lift_ratio[i] <- lift_ratio
+    # Ensure lift_B is not zero for ratio calculation; add small constant
+    lift_ratio_raw <- lift_A / (lift_B + 1e-10)
+    results$lift_ratio[i] <- pmin(pmax(lift_ratio_raw, 0.01), 100)
     
-    # Lift difference (more intuitive)
+    # Lift difference
     results$lift_difference[i] <- lift_A - lift_B
   }
   
@@ -320,11 +326,16 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     # Confidence ratio with small constant
     results$confidence_ratio[i] <- (conf_A + 0.001) / (conf_B + 0.001)
     
-    # Balanced confidence (accounts for group sizes)
-    expected_A <- n_A / (n_A + n_B)
-    expected_B <- n_B / (n_A + n_B)
+    # Balanced confidence:
+    # This measure compares the "gain" in confidence for Group A (P(GroupA|Pattern) - P(GroupA))
+    # with the "gain" for Group B (P(GroupB|Pattern) - P(GroupB)).
+    # A positive value suggests the pattern is more discriminative for Group A compared to its baseline,
+    # relative to how discriminative it is for Group B compared to its baseline.
+    # P(GroupA) is the expected confidence if pattern and group are independent.
+    expected_A_prior <- n_A / (n_A + n_B) # P(GroupA)
+    expected_B_prior <- n_B / (n_A + n_B) # P(GroupB)
     
-    results$balanced_confidence[i] <- (conf_A - expected_A) - (conf_B - expected_B)
+    results$balanced_confidence[i] <- (conf_A - expected_A_prior) - (conf_B - expected_B_prior)
   }
   
   # Sort by absolute confidence difference
@@ -452,10 +463,12 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param max_length Maximum pattern length to analyze (default: 5)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
 #' @param measures Character vector of measures to compute (default: all)
+#' @param min_char_length_state Minimum character length for a state to be considered valid during n-gram extraction (default: 1, meaning all non-empty states are considered).
 #' @return List containing analysis results for each measure
 analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_length = 5,
                              min_frequency = 2, 
-                             measures = c("support", "lift", "confidence", "effect_size")) {
+                             measures = c("support", "lift", "confidence", "effect_size"),
+                             min_char_length_state = 1) { # New parameter
   
   # Input validation
   if (!is.data.frame(data)) {
@@ -486,7 +499,7 @@ analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_leng
   for (length in min_length:max_length) {
     for (seq in all_sequences) {
       if (nchar(seq) > 0) {
-        patterns <- extract_ngrams(seq, length)
+        patterns <- extract_ngrams(seq, length, min_char_length_state = min_char_length_state) # Pass it
         all_patterns <- c(all_patterns, patterns)
       }
     }
