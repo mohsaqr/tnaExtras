@@ -1,0 +1,28 @@
+Package: tnatest
+Title: Temporal Network Analysis and Sequential Pattern Detection
+Version: 0.1.0
+Authors@R: 
+    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: A comprehensive toolkit for analyzing temporal patterns in sequential data.
+    Provides functions for sequence comparison, pattern analysis, and computation
+    of sequence-level indices with focus on complexity systems, Markov chain dynamics,
+    and temporal network analysis. Includes statistical testing capabilities,
+    visualization support, and measures for system stability and favorability analysis.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports:
+    stats,
+    graphics,
+    grDevices,
+    utils
+Suggests: 
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+URL: https://github.com/yourusername/tnatest
+BugReports: https://github.com/yourusername/tnatest/issues 
