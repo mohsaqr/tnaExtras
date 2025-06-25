@@ -15,9 +15,11 @@
 #' Calculates a wide range of sequence-level statistics and indices that 
 #' characterize the structure, dynamics, and complexity of individual sequences
 #' with emphasis on system stability, Markov chain properties, and state favorability.
+#' Supports both data.frame input and group_tna objects from the tna package.
 #'
-#' @param data Data frame with sequences in wide format (columns are time points)
-#' @param group_col Column name or index containing group information (optional)
+#' @param data Data frame with sequences in wide format (columns are time points) OR a group_tna object
+#' @param group_col Column name or index containing group information (optional). 
+#'   Ignored if data is a group_tna object.
 #' @param all_possible_states Vector of all possible states (optional, will be inferred if not provided)
 #' @param favorable_states Vector of states considered "favorable" for system analysis (optional)
 #' @param min_length Minimum sequence length to include (default: 1)
@@ -27,10 +29,15 @@
 #'
 #' @examples
 #' \dontrun{
+#' # With data.frame
 #' data <- read.csv("sequence_data.csv")
 #' # Define favorable states for your system
 #' favorable_states <- c("consensus", "cohesion", "synthesis", "coregulate")
 #' indices <- compute_sequence_indices(data, group_col = "Group", favorable_states = favorable_states)
+#' 
+#' # With group_tna object
+#' # group_tna_obj <- tna::create_group_tna(...)
+#' # indices <- compute_sequence_indices(group_tna_obj, favorable_states = favorable_states)
 #' }
 #'
 #' @export
@@ -41,9 +48,35 @@ compute_sequence_indices <- function(data,
                                    min_length = 1,
                                    return_group_summary = FALSE) {
   
+  # =====================================================================
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
+  # =====================================================================
+  
+  # Check if input is a group_tna object
+  if (is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group_col <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
+    
+    # Use state labels from group_tna if available and not specified
+    if (is.null(all_possible_states) && !is.null(group_info$state_labels)) {
+      all_possible_states <- group_info$state_labels
+      cat("  Using state labels from group_tna:", paste(all_possible_states, collapse = ", "), "\n")
+    }
+  } else {
+    group_info <- NULL
+  }
+  
   # Input validation
   if (!is.data.frame(data)) {
-    stop("data must be a data frame")
+    stop("data must be a data frame or group_tna object")
   }
   
   if (ncol(data) < 2) {
@@ -131,7 +164,7 @@ compute_sequence_indices <- function(data,
   
   # Add group column if present
   if (has_groups) {
-    results$group <- groups
+    results[[group_col]] <- groups
   }
   
   # Add essential favorable state measures if favorable states are specified
@@ -178,10 +211,15 @@ compute_sequence_indices <- function(data,
         n_possible_states = n_possible_states,
         all_possible_states = all_possible_states,
         favorable_states = favorable_states,
-        min_length = min_length
+        min_length = min_length,
+        group_tna_info = group_info  # Store original group_tna metadata
       )
     ))
   } else {
+    # Add group_tna_info to simple results if from group_tna object
+    if (!is.null(group_info)) {
+      attr(results, "group_tna_info") <- group_info
+    }
     return(results)
   }
 }

@@ -23,12 +23,13 @@
 #'
 #' Performs comprehensive sequence comparison analysis across multiple groups, identifying
 #' discriminating subsequences using support-based measures.
+#' Supports both data.frame input and group_tna objects from the tna package.
 #'
 #' @param data A data frame containing sequence data in wide format, where each row
-#'   represents a sequence and each column represents a time point
+#'   represents a sequence and each column represents a time point OR a group_tna object
 #' @param group Column name or index containing group information, or a vector indicating 
 #'   group membership for each sequence. If data contains a group column, specify column 
-#'   name (e.g., "Group") or pass as vector (e.g., data$Group)
+#'   name (e.g., "Group") or pass as vector (e.g., data$Group). Ignored if data is a group_tna object.
 #' @param min_length Minimum subsequence length to analyze (default: 2)
 #' @param max_length Maximum subsequence length to analyze (default: 5)
 #' @param top_n Number of top patterns to return and display (default: 10)
@@ -47,8 +48,12 @@
 #' # Load example data
 #' data(seqdata)
 #' 
-#' # Multi-group analysis
+#' # Multi-group analysis with data.frame
 #' result <- compare_sequences_multi(seqdata, "Group")
+#' 
+#' # Multi-group analysis with group_tna object
+#' # group_tna_obj <- tna::create_group_tna(...)
+#' # result <- compare_sequences_multi(group_tna_obj)
 #' print(result)
 #' }
 #'
@@ -57,12 +62,28 @@ compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5,
                                    top_n = 10, min_frequency = 2) {
   
   # =====================================================================
-  # INPUT VALIDATION
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
   # =====================================================================
+  
+  # Check if input is a group_tna object
+  if (is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
+  } else {
+    group_info <- NULL
+  }
   
   # Validate inputs
   if (!is.data.frame(data)) {
-    stop("'data' must be a data frame", call. = FALSE)
+    stop("'data' must be a data frame or group_tna object", call. = FALSE)
   }
   
   if (nrow(data) == 0) {
@@ -274,7 +295,8 @@ compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5,
     n_patterns_by_length = sapply(analysis_results, function(x) x$n_patterns),
     min_length = min_length,
     max_length = max_length,
-    min_frequency = min_frequency
+    min_frequency = min_frequency,
+    group_tna_info = group_info  # Store original group_tna metadata
   )
   
   # =====================================================================
@@ -359,12 +381,28 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
                              test_method = "auto", min_expected = 5) {
   
   # =====================================================================
-  # INPUT VALIDATION
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
   # =====================================================================
+  
+  # Check if input is a group_tna object
+  if (is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
+  } else {
+    group_info <- NULL
+  }
   
   # Validate inputs
   if (!is.data.frame(data)) {
-    stop("'data' must be a data frame", call. = FALSE)
+    stop("'data' must be a data frame or group_tna object", call. = FALSE)
   }
   
   if (nrow(data) == 0) {
@@ -824,7 +862,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       statistical = statistical,
       correction = correction,
       test_method = test_method,
-      min_expected = min_expected
+      min_expected = min_expected,
+      group_tna_info = group_info  # Store original group_tna metadata
     ),
     stats = summary_stats
   )

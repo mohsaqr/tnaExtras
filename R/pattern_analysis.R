@@ -484,9 +484,11 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
 #' Comprehensive Pattern Analysis for Multiple Groups
 #'
 #' Compute pattern analysis across multiple groups in sequential data.
+#' Supports both data.frame input and group_tna objects from the tna package.
 #'
-#' @param data Data frame with sequences in wide format
-#' @param group_col Column name or index containing group information (default: "Group")
+#' @param data Data frame with sequences in wide format OR a group_tna object
+#' @param group_col Column name or index containing group information (default: "Group").
+#'   Ignored if data is a group_tna object.
 #' @param min_length Minimum pattern length to analyze (default: 2)
 #' @param max_length Maximum pattern length to analyze (default: 5)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
@@ -495,12 +497,32 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
 analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, max_length = 5,
                                    min_frequency = 2, measures = c("support")) {
   
+  # =====================================================================
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
+  # =====================================================================
+  
+  # Check if input is a group_tna object
+  if (is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group_col <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
+  } else {
+    group_info <- NULL
+  }
+  
   # Input validation
   if (!is.data.frame(data)) {
-    stop("data must be a data frame")
+    stop("'data' must be a data frame or group_tna object")
   }
   if (nrow(data) == 0) {
-    stop("data cannot be empty")
+    stop("'data' cannot be empty")
   }
   
   # Prepare data
@@ -564,7 +586,8 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
     n_patterns = length(frequent_patterns),
     min_length = min_length,
     max_length = max_length,
-    min_frequency = min_frequency
+    min_frequency = min_frequency,
+    group_tna_info = group_info  # Store original group_tna metadata
   )
   
   cat("Multi-group analysis complete!\n")
@@ -577,47 +600,52 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
 # MAIN ANALYSIS FUNCTION (keeping for backward compatibility)
 # ==============================================================================
 
-#' Comprehensive Pattern Analysis
+#' Comprehensive Pattern Analysis - Two Groups
 #'
-#' Compute multiple difference measures for patterns in sequential data.
+#' Compute comprehensive pattern analysis between two groups in sequential data.
+#' This function provides detailed statistical measures for pattern comparison.
+#' Supports both data.frame input and group_tna objects from the tna package.
 #'
-#' @param data Data frame with sequences in wide format
-#' @param group_col Column name or index containing group information (default: "Group")
+#' @param data Data frame with sequences in wide format OR a group_tna object
+#' @param group_col Column name or index containing group information (default: "Group").
+#'   Ignored if data is a group_tna object.
 #' @param min_length Minimum pattern length to analyze (default: 2)
 #' @param max_length Maximum pattern length to analyze (default: 5)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
 #' @param measures Character vector of measures to compute (default: all)
-#' @return List containing analysis results for each measure
+#' @param statistical Whether to include statistical testing (default: FALSE)
+#' @param correction Multiple comparison correction method (default: "bonferroni")
+#' @return List containing analysis results
 analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_length = 5,
-                             min_frequency = 2, 
-                             measures = c("support", "lift", "confidence", "effect_size")) {
+                            min_frequency = 2, measures = c("support", "lift", "confidence", "effect_size"), statistical = FALSE,
+                            correction = "bonferroni") {
   
-  # Check if we have multiple groups
-  prepared_data <- prepare_sequence_data(data, group_col, min_length)
-  n_groups <- length(prepared_data$group_names)
+  # =====================================================================
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
+  # =====================================================================
   
-  if (n_groups > 2) {
-    warning("More than 2 groups detected. Consider using analyze_patterns_multi() for full multi-group analysis.")
-    # For now, use only the first two groups for backward compatibility
-    first_two_groups <- prepared_data$group_names[1:2]
-    data_subset <- data[data[[group_col]] %in% first_two_groups, ]
-    return(analyze_patterns_original(data_subset, group_col, min_length, max_length, min_frequency, measures))
+  # Check if input is a group_tna object
+  if (is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group_col <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
   } else {
-    return(analyze_patterns_original(data, group_col, min_length, max_length, min_frequency, measures))
+    group_info <- NULL
   }
-}
-
-# Original two-group analysis function
-analyze_patterns_original <- function(data, group_col = "Group", min_length = 2, max_length = 5,
-                                      min_frequency = 2, 
-                                      measures = c("support", "lift", "confidence", "effect_size")) {
   
   # Input validation
   if (!is.data.frame(data)) {
-    stop("data must be a data frame")
+    stop("'data' must be a data frame or group_tna object")
   }
   if (nrow(data) == 0) {
-    stop("data cannot be empty")
+    stop("'data' cannot be empty")
   }
   
   # Prepare data
@@ -628,16 +656,23 @@ analyze_patterns_original <- function(data, group_col = "Group", min_length = 2,
   groups <- prepared_data$groups
   group_names <- prepared_data$group_names
   
-  if (length(group_names) != 2) {
-    stop("Exactly two groups must be present for traditional analysis")
+  # Check for multiple groups and suggest alternative
+  if (length(group_names) > 2) {
+    warning("Detected ", length(group_names), " groups. Consider using analyze_patterns_multi() for better multi-group analysis.")
+    cat("Note: Using first 2 groups for traditional analysis: ", group_names[1], " and ", group_names[2], "\n")
+    # Use only first 2 groups
+    keep_groups <- groups %in% group_names[1:2]
+    all_sequences <- all_sequences[keep_groups]
+    groups <- groups[keep_groups]
+    group_names <- group_names[1:2]
   }
   
-  # Split by group
-  group_A_seqs <- all_sequences[groups == group_names[1]]
-  group_B_seqs <- all_sequences[groups == group_names[2]]
+  # Split sequences by group
+  group_A_sequences <- all_sequences[groups == group_names[1]]
+  group_B_sequences <- all_sequences[groups == group_names[2]]
   
-  cat(sprintf("Group %s: %d sequences\n", group_names[1], length(group_A_seqs)))
-  cat(sprintf("Group %s: %d sequences\n", group_names[2], length(group_B_seqs)))
+  cat(sprintf("Group %s: %d sequences\n", group_names[1], length(group_A_sequences)))
+  cat(sprintf("Group %s: %d sequences\n", group_names[2], length(group_B_sequences)))
   
   # Extract all unique patterns
   cat("Extracting patterns...\n")
@@ -665,38 +700,45 @@ analyze_patterns_original <- function(data, group_col = "Group", min_length = 2,
   results <- list()
   
   valid_measures <- c("support", "lift", "confidence", "effect_size")
+  
+  # Handle "all" parameter
+  if (length(measures) == 1 && measures[1] == "all") {
+    measures <- valid_measures
+  }
+  
   if (!all(measures %in% valid_measures)) {
     stop("measures must be one or more of: ", paste(valid_measures, collapse = ", "))
   }
   
   if ("support" %in% measures) {
     cat("Computing support measures...\n")
-    results$support <- compute_support_measures(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$support <- compute_support_measures(frequent_patterns, group_A_sequences, group_B_sequences)
   }
   
   if ("lift" %in% measures) {
     cat("Computing lift measures...\n")
-    results$lift <- compute_lift_measures(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$lift <- compute_lift_measures(frequent_patterns, group_A_sequences, group_B_sequences)
   }
   
   if ("confidence" %in% measures) {
     cat("Computing confidence measures...\n")
-    results$confidence <- compute_confidence_measures(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$confidence <- compute_confidence_measures(frequent_patterns, group_A_sequences, group_B_sequences)
   }
   
   if ("effect_size" %in% measures) {
     cat("Computing effect size measures...\n")
-    results$effect_size <- compute_effect_sizes(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$effect_size <- compute_effect_sizes(frequent_patterns, group_A_sequences, group_B_sequences)
   }
   
   # Add metadata
   results$metadata <- list(
     group_names = group_names,
-    n_sequences = c(length(group_A_seqs), length(group_B_seqs)),
+    n_sequences = c(length(group_A_sequences), length(group_B_sequences)),
     n_patterns = length(frequent_patterns),
     min_length = min_length,
     max_length = max_length,
-    min_frequency = min_frequency
+    min_frequency = min_frequency,
+    group_tna_info = group_info  # Store original group_tna metadata
   )
   
   cat("Analysis complete!\n")
