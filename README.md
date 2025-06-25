@@ -174,6 +174,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 If you use this package in your research, please cite:
 
 ```
-Author Name (2025). tnaExtras: Temporal Network Analysis and Sequential Pattern Detection Extras.
+Mohammed Saqr (2025). tnaExtras: Temporal Network Analysis and Sequential Pattern Detection Extras.
 R package version 0.1.0. https://github.com/yourusername/tnaExtras
 ``` 
