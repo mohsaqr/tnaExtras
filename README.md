@@ -79,6 +79,30 @@ indices <- compute_sequence_indices(data,
 print_indices_summary(indices)
 ```
 
+### 4. `compare_sequences_multiple()` (New!)
+
+Performs sequence comparison analysis across multiple groups (3+) by conducting all unique pairwise comparisons using `compare_sequences`.
+
+```r
+# Assuming seq_data_multi has a 'Group' column with levels "X", "Y", "Z"
+# multi_comp_results <- compare_sequences_multiple(seq_data_multi, group = "Group")
+# print(multi_comp_results)
+# summary(multi_comp_results)
+# results_X_vs_Y <- multi_comp_results[["X_vs_Y"]] # Access specific pair
+```
+
+### 5. `analyze_patterns_multiple()` (New!)
+
+Performs pattern analysis (support, lift, etc.) across multiple groups (3+) by conducting all unique pairwise analyses using `analyze_patterns`.
+
+```r
+# Assuming pattern_data_multi has a 'Category' column with levels "Alpha", "Beta", "Gamma"
+# multi_pattern_res <- analyze_patterns_multiple(pattern_data_multi, group_col = "Category")
+# print(multi_pattern_res)
+# summary(multi_pattern_res)
+# results_Alpha_vs_Beta <- multi_pattern_res[["Alpha_vs_Beta"]] # Access specific pair
+```
+
 ## Key Measures and Indices
 
 ### Pattern Analysis Measures
@@ -174,6 +198,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 If you use this package in your research, please cite:
 
 ```
-Mohammed Saqr (2025). tnaExtras: Temporal Network Analysis and Sequential Pattern Detection Extras.
+Author Name (2025). tnaExtras: Temporal Network Analysis and Sequential Pattern Detection Extras.
 R package version 0.1.0. https://github.com/yourusername/tnaExtras
 ``` 
