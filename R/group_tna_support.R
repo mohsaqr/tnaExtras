@@ -106,6 +106,9 @@ convert_group_tna_manual <- function(group_tna_obj, group_info) {
     group_names <- paste0("Group_", seq_along(group_tna_obj))
   }
   
+  # Get labels for converting numeric codes back to text
+  labels <- group_info$state_labels
+  
   # Process each group
   for (i in seq_along(group_tna_obj)) {
     group_data <- group_tna_obj[[i]]
@@ -119,8 +122,13 @@ convert_group_tna_manual <- function(group_tna_obj, group_info) {
       # If it's a matrix, convert to data.frame
       group_df <- as.data.frame(group_data)
     } else if (is.list(group_data) && "data" %in% names(group_data)) {
-      # If it's a list with a data component
+      # If it's a list with a data component (typical group_tna structure)
       group_df <- as.data.frame(group_data$data)
+      
+      # If we have labels and the data is numeric, convert back to text
+      if (!is.null(group_data$labels) && is.null(labels)) {
+        labels <- group_data$labels
+      }
     } else if (is.list(group_data) && length(group_data) > 0) {
       # Try to convert list to data.frame
       tryCatch({
@@ -138,6 +146,25 @@ convert_group_tna_manual <- function(group_tna_obj, group_info) {
     } else {
       warning("Unknown group_tna structure for group ", i)
       group_df <- data.frame()
+    }
+    
+    # Convert numeric codes back to text labels if available
+    if (!is.null(labels) && nrow(group_df) > 0) {
+      # Check if data appears to be numeric codes
+      sequence_cols <- grep("^T[0-9]+", names(group_df))
+      if (length(sequence_cols) > 0) {
+        for (col in sequence_cols) {
+          if (is.numeric(group_df[[col]])) {
+            # Convert numeric codes to text labels
+            # Handle NAs properly
+            group_df[[col]] <- ifelse(
+              is.na(group_df[[col]]) | group_df[[col]] == 0,
+              NA,
+              labels[group_df[[col]]]
+            )
+          }
+        }
+      }
     }
     
     # Add group column
