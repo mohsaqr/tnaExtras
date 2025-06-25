@@ -1,4 +1,4 @@
-# tnatest: Transition Network Analysis and Sequential Pattern Detection
+# tnaExtras: Transition Network Analysis and Sequential Pattern Detection Extras
 
 A comprehensive R package for analyzing temporal patterns in sequential data. This package provides tools for sequence comparison, pattern analysis, and computation of sequence-level indices with focus on complexity systems, Markov chain dynamics, and temporal network analysis.
 
@@ -12,14 +12,14 @@ A comprehensive R package for analyzing temporal patterns in sequential data. Th
 
 ## Installation
 
-You can install the development version of tnatest from GitHub:
+You can install the development version of tnaExtras from GitHub:
 
 ```r
 # Install devtools if you haven't already
 install.packages("devtools")
 
-# Install tnatest from GitHub
-devtools::install_github("mohsaqr/tnatest")
+# Install tnaExtras from GitHub
+devtools::install_github("mohsaqr/tnaExtras")
 ```
 
 ## Main Functions
@@ -29,7 +29,7 @@ devtools::install_github("mohsaqr/tnatest")
 Comprehensive pattern analysis between two groups with multiple measures:
 
 ```r
-library(tnatest)
+library(tnaExtras)
 
 # Create example data
 data <- data.frame(
@@ -105,7 +105,7 @@ print_indices_summary(indices)
 ## Example Workflow
 
 ```r
-library(tnatest)
+library(tnaExtras)
 
 # Load your sequential data
 # Columns should represent time points, with an optional group column
@@ -174,6 +174,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 If you use this package in your research, please cite:
 
 ```
-Author Name (2025). tnatest: Temporal Network Analysis and Sequential Pattern Detection. 
-R package version 0.1.0. https://github.com/yourusername/tnatest
+Author Name (2025). tnaExtras: Temporal Network Analysis and Sequential Pattern Detection Extras.
+R package version 0.1.0. https://github.com/yourusername/tnaExtras
 ``` 

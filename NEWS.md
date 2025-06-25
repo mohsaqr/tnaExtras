@@ -1,8 +1,8 @@
-# tnatest 0.1.0
+# tnaExtras 0.1.0
 
 ## New Features
 
-* Initial release of the tnatest package
+* Initial release of the tnaExtras package
 * Added `analyze_patterns()` function for comprehensive pattern analysis between groups
 * Added `compare_sequences()` function for advanced sequence comparison with statistical testing
 * Added `compute_sequence_indices()` function for sequence-level statistics and complexity measures
