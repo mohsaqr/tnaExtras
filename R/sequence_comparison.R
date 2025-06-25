@@ -7,12 +7,296 @@
 # analysis with visualization support.
 #
 # Functions:
-# - seqompare(): Main sequence comparison function with statistical testing
+# - compare_sequences(): Main sequence comparison function with statistical testing
+# - compare_sequences_multi(): Multi-group sequence comparison
 # - Helper functions for statistical analysis and visualization
 #
 # ==============================================================================
 
 # Pattern analysis functions are available within the package
+
+# ==============================================================================
+# MULTI-GROUP SEQUENCE COMPARISON FUNCTION
+# ==============================================================================
+
+#' Compare Sequences Across Multiple Groups
+#'
+#' Performs comprehensive sequence comparison analysis across multiple groups, identifying
+#' discriminating subsequences using support-based measures.
+#'
+#' @param data A data frame containing sequence data in wide format, where each row
+#'   represents a sequence and each column represents a time point
+#' @param group Column name or index containing group information, or a vector indicating 
+#'   group membership for each sequence. If data contains a group column, specify column 
+#'   name (e.g., "Group") or pass as vector (e.g., data$Group)
+#' @param min_length Minimum subsequence length to analyze (default: 2)
+#' @param max_length Maximum subsequence length to analyze (default: 5)
+#' @param top_n Number of top patterns to return and display (default: 10)
+#' @param min_frequency Minimum frequency required to include a pattern (default: 2)
+#'
+#' @return A compare_sequences_multi object containing:
+#' \describe{
+#'   \item{results}{Main analysis results}
+#'   \item{summary}{Summary table of top patterns}
+#'   \item{parameters}{Analysis parameters used}
+#'   \item{stats}{Summary statistics}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # Load example data
+#' data(seqdata)
+#' 
+#' # Multi-group analysis
+#' result <- compare_sequences_multi(seqdata, "Group")
+#' print(result)
+#' }
+#'
+#' @export
+compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5, 
+                                   top_n = 10, min_frequency = 2) {
+  
+  # =====================================================================
+  # INPUT VALIDATION
+  # =====================================================================
+  
+  # Validate inputs
+  if (!is.data.frame(data)) {
+    stop("'data' must be a data frame", call. = FALSE)
+  }
+  
+  if (nrow(data) == 0) {
+    stop("'data' cannot be empty", call. = FALSE)
+  }
+  
+  if (!is.numeric(min_length) || !is.numeric(max_length) || min_length < 1 || max_length < min_length) {
+    stop("'min_length' and 'max_length' must be positive integers with min_length <= max_length", call. = FALSE)
+  }
+  
+  if (!is.numeric(top_n) || top_n < 1) {
+    stop("'top_n' must be a positive integer", call. = FALSE)
+  }
+  
+  # =====================================================================
+  # DATA PREPROCESSING
+  # =====================================================================
+  
+  # Handle group parameter - can be column name or vector
+  if (is.character(group) && length(group) == 1) {
+    # group is a column name
+    if (!group %in% names(data)) {
+      stop("Group column '", group, "' not found in data", call. = FALSE)
+    }
+    group_vector <- data[[group]]
+    # Remove group column from data
+    data <- data[, !names(data) %in% group, drop = FALSE]
+  } else if (is.numeric(group) && length(group) == 1) {
+    # group is a column index
+    if (group < 1 || group > ncol(data)) {
+      stop("Group column index ", group, " is out of range", call. = FALSE)
+    }
+    group_vector <- data[[group]]
+    # Remove group column from data
+    data <- data[, -group, drop = FALSE]
+  } else {
+    # group is a vector
+    if (length(group) != nrow(data)) {
+      stop("'group' must have the same length as number of rows in 'data'", call. = FALSE)
+    }
+    group_vector <- group
+  }
+  
+  # Convert group to factor and validate
+  group_factor <- as.factor(group_vector)
+  groups <- levels(group_factor)
+  
+  if (length(groups) < 2) {
+    stop("Group variable must have at least 2 levels, found: ", length(groups), call. = FALSE)
+  }
+  
+  # Split data by groups
+  group_data <- list()
+  for (g in groups) {
+    group_seq <- data[group_factor == g, , drop = FALSE]
+    # Clean data: remove empty rows and convert empty strings to NA
+    group_seq <- group_seq[apply(group_seq, 1, function(x) !all(is.na(x) | x == "")), , drop = FALSE]
+    if (nrow(group_seq) == 0) {
+      stop("Group '", g, "' has no valid sequences", call. = FALSE)
+    }
+    group_seq[group_seq == ""] <- NA
+    group_data[[g]] <- group_seq
+  }
+  
+  # =====================================================================
+  # CORE ANALYSIS FUNCTIONS
+  # =====================================================================
+  
+  extract_subsequences <- function(sequences, n) {
+    if (n < 1) return(character(0))
+    
+    subsequences <- character(0)
+    for (i in seq_len(nrow(sequences))) {
+      seq_row <- unlist(sequences[i, ])
+      # Filter out NA, empty strings, and single characters (potential group markers)
+      clean_seq <- seq_row[!is.na(seq_row) & nchar(as.character(seq_row)) > 1]
+      
+      if (length(clean_seq) >= n) {
+        for (j in seq_len(length(clean_seq) - n + 1)) {
+          subseq <- paste(clean_seq[j:(j + n - 1)], collapse = "-")
+          subsequences <- c(subsequences, subseq)
+        }
+      }
+    }
+    return(subsequences)
+  }
+  
+  analyze_multi_group <- function(group_data, n) {
+    # Extract subsequences for each group
+    group_subseqs <- list()
+    for (g in names(group_data)) {
+      group_subseqs[[g]] <- extract_subsequences(group_data[[g]], n)
+    }
+    
+    # Get all unique patterns
+    all_patterns <- unique(unlist(group_subseqs))
+    
+    if (length(all_patterns) == 0) {
+      return(list(n = n, patterns = data.frame(), n_patterns = 0))
+    }
+    
+    # Create frequency table
+    patterns <- data.frame(
+      pattern = all_patterns,
+      stringsAsFactors = FALSE
+    )
+    
+    # Add frequency columns for each group
+    for (g in names(group_data)) {
+      freq_col <- paste0("freq_", g)
+      prop_col <- paste0("prop_", g)
+      
+      freq_table <- table(group_subseqs[[g]])
+      patterns[[freq_col]] <- as.numeric(freq_table[all_patterns])
+      patterns[[freq_col]][is.na(patterns[[freq_col]])] <- 0
+      
+      total_freq <- sum(patterns[[freq_col]])
+      if (total_freq > 0) {
+        patterns[[prop_col]] <- patterns[[freq_col]] / total_freq
+      } else {
+        patterns[[prop_col]] <- 0
+      }
+    }
+    
+    # Calculate discrimination measures
+    # Use coefficient of variation (CV) of proportions as discrimination measure
+    prop_cols <- paste0("prop_", names(group_data))
+    if (length(prop_cols) > 1) {
+      patterns$mean_prop <- apply(patterns[prop_cols], 1, mean)
+      patterns$sd_prop <- apply(patterns[prop_cols], 1, sd)
+      patterns$cv_prop <- ifelse(patterns$mean_prop == 0, 0, patterns$sd_prop / patterns$mean_prop)
+      
+      # Also calculate range
+      patterns$max_prop <- apply(patterns[prop_cols], 1, max)
+      patterns$min_prop <- apply(patterns[prop_cols], 1, min)
+      patterns$range_prop <- patterns$max_prop - patterns$min_prop
+      
+      # Find dominant group
+      max_indices <- apply(patterns[prop_cols], 1, which.max)
+      patterns$dominant_group <- names(group_data)[max_indices]
+      
+      # Sort by range (most discriminating patterns first)
+      patterns <- patterns[order(patterns$range_prop, decreasing = TRUE), ]
+    } else {
+      patterns$cv_prop <- patterns$range_prop <- 0
+      patterns$dominant_group <- names(group_data)[1]
+    }
+    
+    return(list(
+      n = n,
+      patterns = patterns,
+      n_patterns = nrow(patterns)
+    ))
+  }
+  
+  # =====================================================================
+  # MAIN ANALYSIS
+  # =====================================================================
+  
+  cat("Analyzing sequences across", length(groups), "groups:", paste(groups, collapse = ", "), "\n")
+  group_sizes <- sapply(group_data, nrow)
+  cat("Group sizes:", paste(paste(groups, group_sizes, sep = ":"), collapse = ", "), "\n")
+  cat("Subsequence lengths:", min_length, "to", max_length, "\n\n")
+  
+  # Run analysis for each subsequence length
+  analysis_results <- list()
+  for (n in min_length:max_length) {
+    analysis_results[[paste0("length_", n)]] <- analyze_multi_group(group_data, n)
+  }
+  
+  # =====================================================================
+  # COMPILE RESULTS
+  # =====================================================================
+  
+  # Combine results across all lengths for summary
+  all_patterns <- do.call(rbind, lapply(analysis_results, function(x) {
+    if (nrow(x$patterns) > 0) {
+      x$patterns$length <- x$n
+      return(x$patterns)
+    } else {
+      return(data.frame())
+    }
+  }))
+  
+  # Filter by minimum frequency
+  if (nrow(all_patterns) > 0) {
+    total_freq_col <- paste0("freq_", names(group_data))
+    all_patterns$total_freq <- rowSums(all_patterns[total_freq_col])
+    all_patterns <- all_patterns[all_patterns$total_freq >= min_frequency, ]
+  }
+  
+  # Get top patterns
+  if (nrow(all_patterns) > 0) {
+    top_patterns <- head(all_patterns, top_n)
+  } else {
+    top_patterns <- data.frame()
+  }
+  
+  # =====================================================================
+  # SUMMARY STATISTICS
+  # =====================================================================
+  
+  stats <- list(
+    n_groups = length(groups),
+    group_names = groups,
+    group_sizes = group_sizes,
+    total_sequences = sum(group_sizes),
+    n_patterns_total = nrow(all_patterns),
+    n_patterns_by_length = sapply(analysis_results, function(x) x$n_patterns),
+    min_length = min_length,
+    max_length = max_length,
+    min_frequency = min_frequency
+  )
+  
+  # =====================================================================
+  # RETURN RESULTS
+  # =====================================================================
+  
+  result <- list(
+    results = analysis_results,
+    summary = top_patterns,
+    all_patterns = all_patterns,
+    stats = stats,
+    parameters = list(
+      min_length = min_length,
+      max_length = max_length,
+      top_n = top_n,
+      min_frequency = min_frequency
+    )
+  )
+  
+  class(result) <- "compare_sequences_multi"
+  return(result)
+}
 
 # ==============================================================================
 # MAIN SEQUENCE COMPARISON FUNCTION
@@ -140,7 +424,11 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   group_factor <- as.factor(group_vector)
   groups <- levels(group_factor)
   
-  if (length(groups) != 2) {
+  if (length(groups) > 2) {
+    warning("More than 2 groups detected (", length(groups), " groups). Consider using compare_sequences_multi() for full multi-group analysis. Using only the first 2 groups for now.")
+    groups <- groups[1:2]
+    group_factor <- droplevels(group_factor[group_factor %in% groups])
+  } else if (length(groups) != 2) {
     stop("Group variable must have exactly 2 levels, found: ", length(groups), call. = FALSE)
   }
   
@@ -767,4 +1055,110 @@ plot.compare_sequences <- function(x, ...) {
   # Create plots
   create_plots(x$summary, x$parameters, x$parameters$groups)
   cat("Plot recreation complete!\n")
+}
+
+# ==============================================================================
+# PRINT AND SUMMARY METHODS FOR MULTI-GROUP COMPARISON
+# ==============================================================================
+
+#' Print method for compare_sequences_multi objects
+#' @param x compare_sequences_multi object
+#' @param ... additional arguments
+print.compare_sequences_multi <- function(x, ...) {
+  cat("Multi-Group Sequence Comparison Results\n")
+  cat("=======================================\n\n")
+  
+  cat("Analysis Summary:\n")
+  cat("  Groups:", paste(x$stats$group_names, collapse = ", "), "\n")
+  cat("  Group sizes:", paste(paste(x$stats$group_names, x$stats$group_sizes, sep = ":"), collapse = ", "), "\n")
+  cat("  Total sequences:", x$stats$total_sequences, "\n")
+  cat("  Subsequence lengths:", x$parameters$min_length, "to", x$parameters$max_length, "\n")
+  cat("  Total patterns found:", x$stats$n_patterns_total, "\n")
+  cat("  Patterns by length:\n")
+  for (i in seq_along(x$stats$n_patterns_by_length)) {
+    len <- names(x$stats$n_patterns_by_length)[i]
+    count <- x$stats$n_patterns_by_length[i]
+    cat("    ", len, ":", count, "patterns\n")
+  }
+  
+  cat("\nTop discriminating patterns:\n")
+  if (nrow(x$summary) > 0) {
+    n_show <- min(5, nrow(x$summary))
+    show_cols <- c("pattern", "length", "range_prop", "dominant_group")
+    available_cols <- intersect(show_cols, names(x$summary))
+    print(head(x$summary[available_cols], n_show))
+    
+    if (nrow(x$summary) > n_show) {
+      cat("  ... and", nrow(x$summary) - n_show, "more patterns\n")
+    }
+  } else {
+    cat("  No patterns found meeting criteria\n")
+  }
+  
+  cat("\nUse summary(result) for detailed analysis\n")
+}
+
+#' Summary method for compare_sequences_multi objects
+#' @param object compare_sequences_multi object
+#' @param length which subsequence length to summarize (default: all)
+#' @param top_n number of top patterns to show (default: 10)
+#' @param ... additional arguments
+summary.compare_sequences_multi <- function(object, length = NULL, top_n = 10, ...) {
+  cat("Multi-Group Sequence Comparison - Detailed Summary\n")
+  cat("==================================================\n\n")
+  
+  # Overall statistics
+  cat("Dataset Information:\n")
+  cat("  Groups:", length(object$stats$group_names), "(", paste(object$stats$group_names, collapse = ", "), ")\n")
+  cat("  Total sequences:", object$stats$total_sequences, "\n")
+  cat("  Subsequence range:", object$parameters$min_length, "to", object$parameters$max_length, "\n")
+  cat("  Minimum frequency:", object$parameters$min_frequency, "\n\n")
+  
+  # Group-specific information
+  cat("Group Details:\n")
+  for (i in seq_along(object$stats$group_names)) {
+    g <- object$stats$group_names[i]
+    size <- object$stats$group_sizes[i]
+    prop <- round(size / object$stats$total_sequences * 100, 1)
+    cat("  ", g, ":", size, "sequences (", prop, "%)\n")
+  }
+  cat("\n")
+  
+  # Pattern summary by length
+  if (is.null(length)) {
+    cat("Pattern Summary by Length:\n")
+    for (len_key in names(object$results)) {
+      len_num <- object$results[[len_key]]$n
+      n_patterns <- object$results[[len_key]]$n_patterns
+      cat("  Length", len_num, ":", n_patterns, "patterns\n")
+    }
+    cat("\n")
+    
+    # Show top patterns across all lengths
+    cat("Top", min(top_n, nrow(object$summary)), "Discriminating Patterns (All Lengths):\n")
+    if (nrow(object$summary) > 0) {
+      print(head(object$summary, top_n))
+    } else {
+      cat("  No patterns found\n")
+    }
+    
+  } else {
+    # Show specific length
+    len_key <- paste0("length_", length)
+    if (len_key %in% names(object$results)) {
+      len_data <- object$results[[len_key]]
+      cat("Patterns for Length", length, ":\n")
+      cat("  Total patterns:", len_data$n_patterns, "\n\n")
+      
+      if (len_data$n_patterns > 0) {
+        n_show <- min(top_n, nrow(len_data$patterns))
+        cat("Top", n_show, "patterns:\n")
+        print(head(len_data$patterns, n_show))
+      } else {
+        cat("  No patterns found for this length\n")
+      }
+    } else {
+      cat("Length", length, "not found in results\n")
+    }
+  }
 } 
