@@ -557,7 +557,10 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
   frequent_patterns <- names(pattern_counts[pattern_counts >= min_frequency])
   
   if (length(frequent_patterns) == 0) {
-    stop("No patterns meet the minimum frequency threshold")
+    max_freq <- if(length(pattern_counts) > 0) max(pattern_counts) else 0
+    stop("No patterns meet the minimum frequency threshold of ", min_frequency, 
+         ". Maximum pattern frequency found: ", max_freq, 
+         ". Try reducing min_frequency to ", max(1, max_freq), " or lower.")
   }
   
   cat(sprintf("Found %d patterns meeting frequency threshold\n", length(frequent_patterns)))
@@ -611,7 +614,8 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
 #'   Ignored if data is a group_tna object.
 #' @param min_length Minimum pattern length to analyze (default: 2)
 #' @param max_length Maximum pattern length to analyze (default: 5)
-#' @param min_frequency Minimum frequency required to include a pattern (default: 2)
+#' @param min_frequency Minimum frequency required to include a pattern (default: 2). 
+#'   If too high, may result in "No patterns meet threshold" error. Try reducing if this occurs.
 #' @param measures Character vector of measures to compute (default: all)
 #' @param statistical Whether to include statistical testing (default: FALSE)
 #' @param correction Multiple comparison correction method (default: "bonferroni")
