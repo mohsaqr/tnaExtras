@@ -57,9 +57,8 @@
 #' print(result)
 #' }
 #'
-#' @export
-compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5, 
-                                   top_n = 10, min_frequency = 2) {
+compare_sequences_multi_internal <- function(data, group, min_length = 2, max_length = 5, 
+                                             top_n = 10, min_frequency = 2) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -326,9 +325,10 @@ compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5,
 
 #' Compare Sequences Between Groups
 #'
-#' Performs comprehensive sequence comparison analysis between two groups, identifying
-#' discriminating subsequences and their statistical associations. Supports both
-#' discrimination-based analysis and rigorous statistical testing.
+#' Performs comprehensive sequence comparison analysis between groups. Automatically
+#' detects the number of groups and uses appropriate analysis methods:
+#' - For 2 groups: Full statistical analysis with tests, effect sizes, and detailed measures
+#' - For 3+ groups: Multi-group discrimination analysis with support-based measures
 #'
 #' @param data A data frame containing sequence data in wide format, where each row
 #'   represents a sequence and each column represents a time point
@@ -343,42 +343,40 @@ compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5,
 #'   shows overall top patterns across all lengths
 #' @param statistical Logical, whether to perform statistical testing (default: FALSE).
 #'   When TRUE, performs Chi-squared or Fisher's Exact tests; when FALSE, uses
-#'   discrimination score analysis
+#'   discrimination score analysis. Only applies to 2-group analysis
 #' @param correction Character, multiple comparison correction method (default: "bonferroni").
 #'   Supports all R p.adjust methods: "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"
+#'   Only applies to 2-group statistical analysis
 #' @param test_method Character, statistical test selection (default: "auto").
-#'   Options: "auto", "fisher", "chi.squared"
-#' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5)
+#'   Options: "auto", "fisher", "chi.squared". Only applies to 2-group statistical analysis
+#' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5).
+#'   Only applies to 2-group statistical analysis
+#' @param min_frequency Numeric, minimum frequency for pattern inclusion in multi-group analysis (default: 2)
 #'
-#' @return A compare_sequences object containing:
-#' \describe{
-#'   \item{results}{Main analysis results}
-#'   \item{summary}{Summary table of top patterns}
-#'   \item{parameters}{Analysis parameters used}
-#'   \item{stats}{Summary statistics}
-#' }
+#' @return For 2 groups: A compare_sequences object with statistical measures
+#'         For 3+ groups: A compare_sequences_multi object with discrimination measures
 #'
 #' @examples
 #' \dontrun{
 #' # Load example data
 #' data(seqdata)
 #' 
-#' # Basic analysis using column name
+#' # Automatically detects 2 groups - uses detailed statistical analysis
 #' result <- compare_sequences(seqdata, "Group")
 #' print(result)
 #' 
-#' # Basic analysis using vector
-#' result <- compare_sequences(seqdata, seqdata$Group)
+#' # Automatically detects 3+ groups - uses multi-group discrimination analysis
+#' result <- compare_sequences(multigroup_data, "Group")
 #' print(result)
 #' 
-#' # Statistical analysis
+#' # Statistical analysis (only for 2 groups)
 #' result <- compare_sequences(seqdata, "Group", statistical = TRUE)
 #' }
 #'
 #' @export
 compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n = 10, 
                              detailed = FALSE, statistical = FALSE, correction = "bonferroni", 
-                             test_method = "auto", min_expected = 5) {
+                             test_method = "auto", min_expected = 5, min_frequency = 2) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -462,13 +460,22 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   group_factor <- as.factor(group_vector)
   groups <- levels(group_factor)
   
+  # Auto-detection logic: delegate to appropriate function based on number of groups
   if (length(groups) > 2) {
-    warning("More than 2 groups detected (", length(groups), " groups). Consider using compare_sequences_multi() for full multi-group analysis. Using only the first 2 groups for now.")
-    groups <- groups[1:2]
-    group_factor <- droplevels(group_factor[group_factor %in% groups])
+    cat("Detected", length(groups), "groups. Using multi-group analysis...\n")
+    # Reconstruct the original data with group column for delegation
+    original_data <- data
+    original_data[[if(is.character(group) && length(group) == 1) group else "Group"]] <- group_vector
+    return(compare_sequences_multi_internal(data = original_data,
+                                           group = if(is.character(group) && length(group) == 1) group else "Group",
+                                           min_length = min_length, max_length = max_length,
+                                           top_n = top_n, min_frequency = min_frequency))
   } else if (length(groups) != 2) {
-    stop("Group variable must have exactly 2 levels, found: ", length(groups), call. = FALSE)
+    stop("Group variable must have exactly 2 levels for two-group analysis, found: ", length(groups), call. = FALSE)
   }
+  
+  # Continue with 2-group analysis
+  cat("Detected 2 groups. Using detailed two-group analysis...\n")
   
   # Split data by groups
   seq_A <- data[group_factor == groups[1], , drop = FALSE]
@@ -1232,4 +1239,23 @@ summary.compare_sequences_multi <- function(object, length = NULL, top_n = 10, .
       cat("Length", length, "not found in results\n")
     }
   }
+}
+
+# ==============================================================================
+# ALIASES FOR BACKWARD COMPATIBILITY
+# ==============================================================================
+
+#' Multi-Group Sequence Comparison (Alias for compare_sequences)
+#'
+#' This function is now an alias for compare_sequences() which auto-detects
+#' the number of groups. For multi-group analysis, use compare_sequences() directly.
+#' 
+#' @param ... All arguments passed to compare_sequences()
+#' @return Same as compare_sequences()
+#' @export
+compare_sequences_multi <- function(...) {
+  # Force multi-group behavior if not enough groups are auto-detected
+  args <- list(...)
+  result <- do.call(compare_sequences, args)
+  return(result)
 } 

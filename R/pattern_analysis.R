@@ -587,15 +587,15 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_nam
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
 #' @param measures Character vector of measures to compute (default: "support")
 #' @return List containing analysis results
-analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, max_length = 5,
-                                   min_frequency = 2, measures = c("support")) {
+analyze_patterns_multi_internal <- function(data, group_col = "Group", min_length = 2, max_length = 5,
+                                           min_frequency = 2, measures = c("support"), group_info = NULL) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
   # =====================================================================
   
-  # Check if input is a group_tna object
-  if (is_group_tna(data)) {
+  # Check if input is a group_tna object (if not already processed)
+  if (is.null(group_info) && is_group_tna(data)) {
     cat("Detected group_tna object, converting to tnaExtras format...\n")
     converted <- convert_group_tna(data)
     data <- converted$data
@@ -606,8 +606,6 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
     cat("  Label:", group_info$label %||% "Unknown", "\n")
     cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
     cat("  Total sequences:", nrow(data), "\n")
-  } else {
-    group_info <- NULL
   }
   
   # Input validation
@@ -696,10 +694,11 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
 # MAIN ANALYSIS FUNCTION (keeping for backward compatibility)
 # ==============================================================================
 
-#' Comprehensive Pattern Analysis - Two Groups
+#' Comprehensive Pattern Analysis (Auto-detects 2 or Multiple Groups)
 #'
-#' Compute comprehensive pattern analysis between two groups in sequential data.
-#' This function provides detailed statistical measures for pattern comparison.
+#' Automatically detects the number of groups and performs appropriate pattern analysis.
+#' For 2 groups: provides detailed statistical measures including lift, confidence, effect sizes.
+#' For 3+ groups: provides multi-group support-based analysis with discrimination measures.
 #' Supports both data.frame input and group_tna objects from the tna package.
 #'
 #' @param data Data frame with sequences in wide format OR a group_tna object
@@ -709,13 +708,14 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
 #' @param max_length Maximum pattern length to analyze (default: 5)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2). 
 #'   If too high, may result in "No patterns meet threshold" error. Try reducing if this occurs.
-#' @param measures Character vector of measures to compute (default: all)
-#' @param statistical Whether to include statistical testing (default: FALSE)
+#' @param measures Character vector of measures to compute (default: auto-selected based on group count)
+#' @param statistical Whether to include statistical testing for 2-group analysis (default: FALSE)
 #' @param correction Multiple comparison correction method (default: "bonferroni").
 #'   Supports all R p.adjust methods: "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"
-#' @return List containing analysis results
+#' @return List containing analysis results (structure depends on number of groups detected)
+#' @export
 analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_length = 5,
-                            min_frequency = 2, measures = c("support", "lift", "confidence", "effect_size"), statistical = FALSE,
+                            min_frequency = 2, measures = "auto", statistical = FALSE,
                             correction = "bonferroni") {
   
   # =====================================================================
@@ -754,15 +754,30 @@ analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_leng
   groups <- prepared_data$groups
   group_names <- prepared_data$group_names
   
-  # Check for multiple groups and suggest alternative
-  if (length(group_names) > 2) {
-    warning("Detected ", length(group_names), " groups. Consider using analyze_patterns_multi() for better multi-group analysis.")
-    cat("Note: Using first 2 groups for traditional analysis: ", group_names[1], " and ", group_names[2], "\n")
-    # Use only first 2 groups
-    keep_groups <- groups %in% group_names[1:2]
-    all_sequences <- all_sequences[keep_groups]
-    groups <- groups[keep_groups]
-    group_names <- group_names[1:2]
+  # Auto-detect analysis type based on number of groups
+  n_groups <- length(group_names)
+  cat("Detected", n_groups, "groups:", paste(group_names, collapse = ", "), "\n")
+  
+  if (n_groups > 2) {
+    # Multi-group analysis
+    cat("Using multi-group analysis for", n_groups, "groups\n")
+    
+    # Auto-select measures for multi-group
+    if (identical(measures, "auto")) {
+      measures <- "support"
+    }
+    
+    # Delegate to multi-group analysis
+    return(analyze_patterns_multi_internal(data, group_col, min_length, max_length, 
+                                          min_frequency, measures, group_info))
+  } else {
+    # Two-group analysis
+    cat("Using two-group analysis for", n_groups, "groups\n")
+    
+    # Auto-select measures for two-group
+    if (identical(measures, "auto")) {
+      measures <- c("support", "lift", "confidence", "effect_size")
+    }
   }
   
   # Split sequences by group
@@ -962,4 +977,25 @@ summary.pattern_analysis <- function(object, measure = NULL, top_n = 10, ...) {
   if (nrow(data) > n_show) {
     cat(sprintf("\n... and %d more patterns\n", nrow(data) - n_show))
   }
+}
+
+# ==============================================================================
+# ALIASES FOR BACKWARD COMPATIBILITY
+# ==============================================================================
+
+#' Multi-Group Pattern Analysis (Alias for analyze_patterns)
+#'
+#' This function is now an alias for analyze_patterns() which auto-detects
+#' the number of groups. For multi-group analysis, use analyze_patterns() directly.
+#' 
+#' @param ... All arguments passed to analyze_patterns()
+#' @return Same as analyze_patterns()
+#' @export
+analyze_patterns_multi <- function(...) {
+  # Force multi-group measures if not specified
+  args <- list(...)
+  if (is.null(args$measures) || identical(args$measures, "auto")) {
+    args$measures <- "support"
+  }
+  do.call(analyze_patterns, args)
 } 
