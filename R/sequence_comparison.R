@@ -799,9 +799,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
       par(mar = c(5, 12, 4, 1))
       
-      # Color palette
+      # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
-      colors <- colorRampPalette(c("blue", "white", "red"))(100)
+      colors <- colorRampPalette(c("red", "white", "blue"))(100)
       
       # Create heatmap
       image(1:ncol(residual_matrix), 1:nrow(residual_matrix), 
@@ -830,9 +830,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       legend_vals <- seq(-max_val, max_val, length.out = 5)
       axis(4, at = seq(0, 1, length.out = 5), labels = sprintf("%.2f", legend_vals), las = 2)
       
-      # Add "Overrep." and "Underrep." labels
-      text(0.5, 0.95, "Overrep.", pos = 4, cex = 0.8)
-      text(0.5, 0.05, "Underrep.", pos = 4, cex = 0.8)
+      # Add "Overrep." and "Underrep." labels (positioned at top and bottom)
+      text(1.2, 0.95, "Overrep.", cex = 0.8)
+      text(1.2, 0.05, "Underrep.", cex = 0.8)
       
       # Reset layout
       layout(1)
@@ -1065,9 +1065,9 @@ plot.compare_sequences <- function(x, ...) {
       layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
       par(mar = c(5, 12, 4, 1))
       
-      # Color palette
+      # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
-      colors <- colorRampPalette(c("blue", "white", "red"))(100)
+      colors <- colorRampPalette(c("red", "white", "blue"))(100)
       
       # Create heatmap
       image(1:ncol(residual_matrix), 1:nrow(residual_matrix), 
@@ -1096,9 +1096,9 @@ plot.compare_sequences <- function(x, ...) {
       legend_vals <- seq(-max_val, max_val, length.out = 5)
       axis(4, at = seq(0, 1, length.out = 5), labels = sprintf("%.2f", legend_vals), las = 2)
       
-      # Add "Overrep." and "Underrep." labels
-      text(0.5, 0.95, "Overrep.", pos = 4, cex = 0.8)
-      text(0.5, 0.05, "Underrep.", pos = 4, cex = 0.8)
+      # Add "Overrep." and "Underrep." labels (positioned at top and bottom)
+      text(1.2, 0.95, "Overrep.", cex = 0.8)
+      text(1.2, 0.05, "Underrep.", cex = 0.8)
       
       # Reset layout
       layout(1)
