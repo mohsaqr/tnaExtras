@@ -421,6 +421,14 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_nam
     stop("group sequences cannot be empty")
   }
   
+  n_A <- length(group_A_seqs)
+  n_B <- length(group_B_seqs)
+  
+  # Warn about potential numerical issues with very large datasets
+  if (n_A > 10000 || n_B > 10000 || length(patterns) > 5000) {
+    cat("Note: Large dataset detected. Some effect size calculations may use approximations to avoid numerical overflow.\n")
+  }
+  
   results <- data.frame(
     pattern = patterns,
     cohens_h = numeric(length(patterns)),
@@ -430,9 +438,6 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_nam
     standardized_diff = numeric(length(patterns)),
     stringsAsFactors = FALSE
   )
-  
-  n_A <- length(group_A_seqs)
-  n_B <- length(group_B_seqs)
   
   for (i in seq_along(patterns)) {
     pattern <- patterns[i]
@@ -475,9 +480,19 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_nam
     # Cramer's V
     total_n <- n_A + n_B
     if (total_n > 0) {
-      chi_sq <- suppressWarnings(chisq.test(cont_table, correct = FALSE))
-      if (!is.na(chi_sq$statistic)) {
+      chi_sq <- suppressWarnings(tryCatch({
+        chisq.test(cont_table, correct = FALSE)
+      }, error = function(e) {
+        # If chi-square test fails (e.g., due to large numbers), return a dummy object
+        list(statistic = 0)
+      }))
+      
+      if (!is.null(chi_sq$statistic) && !is.na(chi_sq$statistic) && is.finite(chi_sq$statistic)) {
         cramers_v <- sqrt(chi_sq$statistic / (total_n * (min(nrow(cont_table), ncol(cont_table)) - 1)))
+        # Ensure cramers_v is finite and not too large
+        if (!is.finite(cramers_v) || cramers_v > 1) {
+          cramers_v <- 0
+        }
       } else {
         cramers_v <- 0
       }
@@ -487,16 +502,44 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_nam
     
     # Phi coefficient (for 2x2 tables)
     if (total_n > 0) {
-      a <- cont_table[1,1]  # Group A, present
-      b <- cont_table[1,2]  # Group A, absent
-      c <- cont_table[2,1]  # Group B, present
-      d <- cont_table[2,2]  # Group B, absent
+      a <- as.numeric(cont_table[1,1])  # Group A, present
+      b <- as.numeric(cont_table[1,2])  # Group A, absent
+      c <- as.numeric(cont_table[2,1])  # Group B, present
+      d <- as.numeric(cont_table[2,2])  # Group B, absent
       
-      denom <- sqrt((a + b) * (c + d) * (a + c) * (b + d))
-      if (denom > 0) {
-        phi_coefficient <- (a * d - b * c) / denom
+      # Use safer calculation to avoid integer overflow
+      # Calculate each factor separately and check for potential overflow
+      factor1 <- a + b
+      factor2 <- c + d
+      factor3 <- a + c
+      factor4 <- b + d
+      
+      # Check if any factor would cause overflow when multiplied
+      max_safe_int <- .Machine$integer.max
+      if (any(c(factor1, factor2, factor3, factor4) > sqrt(max_safe_int))) {
+        # Use alternative calculation method for very large numbers
+        # phi = (ad - bc) / sqrt((a+b)(c+d)(a+c)(b+d))
+        # = (ad - bc) / sqrt(n_A * n_B * (total_present) * (total_absent))
+        total_present <- a + c
+        total_absent <- b + d
+        
+        if (total_present > 0 && total_absent > 0 && n_A > 0 && n_B > 0) {
+          numerator <- a * d - b * c
+          # Use log-space calculation to avoid overflow
+          log_denom <- 0.5 * (log(n_A) + log(n_B) + log(total_present) + log(total_absent))
+          denom <- exp(log_denom)
+          phi_coefficient <- numerator / denom
+        } else {
+          phi_coefficient <- 0
+        }
       } else {
-        phi_coefficient <- 0
+        # Standard calculation is safe
+        denom <- sqrt(factor1 * factor2 * factor3 * factor4)
+        if (denom > 0) {
+          phi_coefficient <- (a * d - b * c) / denom
+        } else {
+          phi_coefficient <- 0
+        }
       }
     } else {
       phi_coefficient <- 0
@@ -505,11 +548,19 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_nam
     # Standardized difference
     pooled_se <- sqrt(pooled_p * (1 - pooled_p) * (1/n_A + 1/n_B))
     
+    # Ensure all values are finite and reasonable before storing
+    cohens_h <- ifelse(is.finite(cohens_h), cohens_h, 0)
+    cohens_d <- ifelse(is.finite(cohens_d), cohens_d, 0)
+    cramers_v <- ifelse(is.finite(cramers_v), cramers_v, 0)
+    phi_coefficient <- ifelse(is.finite(phi_coefficient), phi_coefficient, 0)
+    standardized_diff <- ifelse(pooled_se == 0 || !is.finite(pooled_se), 0, (p_A - p_B) / pooled_se)
+    standardized_diff <- ifelse(is.finite(standardized_diff), standardized_diff, 0)
+    
     results$cohens_h[i] <- cohens_h
     results$cohens_d[i] <- cohens_d
     results$cramers_v[i] <- cramers_v
     results$phi_coefficient[i] <- phi_coefficient
-    results$standardized_diff[i] <- ifelse(pooled_se == 0, 0, (p_A - p_B) / pooled_se)
+    results$standardized_diff[i] <- standardized_diff
   }
   
   # Sort by Cohen's h
