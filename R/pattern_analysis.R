@@ -84,8 +84,8 @@ prepare_sequence_data <- function(data, group_col = "Group", min_length = 2) {
     stop("No valid sequences found after processing")
   }
   
-  if (length(unique(groups)) != 2) {
-    stop("Exactly two groups must be present in the data")
+  if (length(unique(groups)) < 2) {
+    stop("At least two groups must be present in the data")
   }
   
   return(list(
@@ -99,63 +99,109 @@ prepare_sequence_data <- function(data, group_col = "Group", min_length = 2) {
 # SUPPORT MEASURES
 # ==============================================================================
 
-#' Compute Support-based Differences
+#' Compute Support-based Differences for Multiple Groups
 #'
 #' Support measures how frequently a pattern appears in each group.
 #' Support is defined as the proportion of sequences containing the pattern.
 #'
 #' @param patterns Character vector of patterns to analyze
-#' @param group_A_seqs Character vector of sequences for group A
-#' @param group_B_seqs Character vector of sequences for group B
+#' @param group_sequences List of character vectors, one for each group
+#' @param group_names Character vector of group names
 #' @return Data frame with support measures
-compute_support_measures <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_support_measures_multi <- function(patterns, group_sequences, group_names) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
   }
-  if (!is.character(group_A_seqs) || !is.character(group_B_seqs)) {
-    stop("group sequences must be character vectors")
+  if (!is.list(group_sequences) || length(group_sequences) == 0) {
+    stop("group_sequences must be a non-empty list")
   }
-  if (length(group_A_seqs) == 0 || length(group_B_seqs) == 0) {
-    stop("group sequences cannot be empty")
+  if (length(group_names) != length(group_sequences)) {
+    stop("group_names must have the same length as group_sequences")
   }
   
+  n_groups <- length(group_sequences)
+  n_patterns <- length(patterns)
+  
+  # Initialize results dataframe
   results <- data.frame(
     pattern = patterns,
-    support_A = numeric(length(patterns)),
-    support_B = numeric(length(patterns)),
-    support_diff = numeric(length(patterns)),
-    support_ratio = numeric(length(patterns)),
-    relative_support = numeric(length(patterns)),
     stringsAsFactors = FALSE
   )
   
-  n_A <- length(group_A_seqs)
-  n_B <- length(group_B_seqs)
+  # Add support columns for each group
+  for (i in 1:n_groups) {
+    col_name <- paste0("support_", group_names[i])
+    results[[col_name]] <- numeric(n_patterns)
+  }
   
+  # Add overall statistics columns
+  results$max_support <- numeric(n_patterns)
+  results$min_support <- numeric(n_patterns)
+  results$support_range <- numeric(n_patterns)
+  results$support_variance <- numeric(n_patterns)
+  results$dominant_group <- character(n_patterns)
+  
+  # Get group sizes
+  group_sizes <- sapply(group_sequences, length)
+  
+  # Compute support for each pattern
   for (i in seq_along(patterns)) {
     pattern <- patterns[i]
+    supports <- numeric(n_groups)
     
-    # Count occurrences in each group
-    count_A <- sum(grepl(pattern, group_A_seqs, fixed = TRUE))
-    count_B <- sum(grepl(pattern, group_B_seqs, fixed = TRUE))
+    # Calculate support for each group
+    for (j in 1:n_groups) {
+      if (group_sizes[j] > 0) {
+        count <- sum(grepl(pattern, group_sequences[[j]], fixed = TRUE))
+        support <- count / group_sizes[j]
+        supports[j] <- support
+        col_name <- paste0("support_", group_names[j])
+        results[[col_name]][i] <- support
+      }
+    }
     
-    # Support = frequency / total sequences
-    support_A <- count_A / n_A
-    support_B <- count_B / n_B
-    
-    results$support_A[i] <- support_A
-    results$support_B[i] <- support_B
-    results$support_diff[i] <- support_A - support_B
-    
-    # Handle support ratio with small constant to avoid infinity
-    results$support_ratio[i] <- (support_A + 0.001) / (support_B + 0.001)
-    
-    # Relative support (normalized difference)
-    total_support <- support_A + support_B
-    results$relative_support[i] <- ifelse(total_support == 0, 0, 
-                                         (support_A - support_B) / total_support)
+    # Calculate summary statistics
+    results$max_support[i] <- max(supports)
+    results$min_support[i] <- min(supports)
+    results$support_range[i] <- max(supports) - min(supports)
+    results$support_variance[i] <- var(supports)
+    results$dominant_group[i] <- group_names[which.max(supports)]
   }
+  
+  # Sort by support range (difference between max and min)
+  results <- results[order(results$support_range, decreasing = TRUE), ]
+  rownames(results) <- NULL
+  
+  return(results)
+}
+
+# Keep the original function for backward compatibility
+compute_support_measures <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
+  group_sequences <- list(group_A_seqs, group_B_seqs)
+  
+  multi_result <- compute_support_measures_multi(patterns, group_sequences, group_names)
+  
+  # Create dynamic column names using actual group names
+  support_col_A <- paste0("support_", group_names[1])
+  support_col_B <- paste0("support_", group_names[2])
+  
+  # Convert to original format with actual group names
+  results <- data.frame(
+    pattern = multi_result$pattern,
+    stringsAsFactors = FALSE
+  )
+  
+  # Add support columns with actual group names
+  results[[support_col_A]] <- multi_result[[support_col_A]]
+  results[[support_col_B]] <- multi_result[[support_col_B]]
+  
+  # Calculate differences and ratios
+  results$support_diff <- multi_result[[support_col_A]] - multi_result[[support_col_B]]
+  results$support_ratio <- (multi_result[[support_col_A]] + 0.001) / (multi_result[[support_col_B]] + 0.001)
+  results$relative_support <- ifelse((multi_result[[support_col_A]] + multi_result[[support_col_B]]) == 0, 0, 
+                           (multi_result[[support_col_A]] - multi_result[[support_col_B]]) / 
+                           (multi_result[[support_col_A]] + multi_result[[support_col_B]]))
   
   # Sort by absolute support difference
   results <- results[order(abs(results$support_diff), decreasing = TRUE), ]
@@ -176,8 +222,9 @@ compute_support_measures <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param patterns Character vector of patterns to analyze
 #' @param group_A_seqs Character vector of sequences for group A
 #' @param group_B_seqs Character vector of sequences for group B
+#' @param group_names Character vector of actual group names (default: c("A", "B"))
 #' @return Data frame with lift measures
-compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
@@ -189,18 +236,28 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     stop("group sequences cannot be empty")
   }
   
+  # Create dynamic column names using actual group names
+  observed_col_A <- paste0("observed_", group_names[1])
+  observed_col_B <- paste0("observed_", group_names[2])
+  expected_col_A <- paste0("expected_", group_names[1])
+  expected_col_B <- paste0("expected_", group_names[2])
+  lift_col_A <- paste0("lift_", group_names[1])
+  lift_col_B <- paste0("lift_", group_names[2])
+  
   results <- data.frame(
     pattern = patterns,
-    observed_A = numeric(length(patterns)),
-    observed_B = numeric(length(patterns)),
-    expected_A = numeric(length(patterns)),
-    expected_B = numeric(length(patterns)),
-    lift_A = numeric(length(patterns)),
-    lift_B = numeric(length(patterns)),
-    lift_ratio = numeric(length(patterns)),
-    lift_difference = numeric(length(patterns)),
     stringsAsFactors = FALSE
   )
+  
+  # Add columns with actual group names
+  results[[observed_col_A]] <- numeric(length(patterns))
+  results[[observed_col_B]] <- numeric(length(patterns))
+  results[[expected_col_A]] <- numeric(length(patterns))
+  results[[expected_col_B]] <- numeric(length(patterns))
+  results[[lift_col_A]] <- numeric(length(patterns))
+  results[[lift_col_B]] <- numeric(length(patterns))
+  results$lift_ratio <- numeric(length(patterns))
+  results$lift_difference <- numeric(length(patterns))
   
   n_A <- length(group_A_seqs)
   n_B <- length(group_B_seqs)
@@ -216,7 +273,6 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     
     # Skip patterns with no occurrences
     if (count_total == 0) {
-      results[i, 2:9] <- 0
       next
     }
     
@@ -236,12 +292,12 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     lift_A <- prop_A / (expected_prop_A + 1e-10)
     lift_B <- prop_B / (expected_prop_B + 1e-10)
     
-    results$observed_A[i] <- count_A
-    results$observed_B[i] <- count_B
-    results$expected_A[i] <- expected_A
-    results$expected_B[i] <- expected_B
-    results$lift_A[i] <- lift_A
-    results$lift_B[i] <- lift_B
+    results[[observed_col_A]][i] <- count_A
+    results[[observed_col_B]][i] <- count_B
+    results[[expected_col_A]][i] <- expected_A
+    results[[expected_col_B]][i] <- expected_B
+    results[[lift_col_A]][i] <- lift_A
+    results[[lift_col_B]][i] <- lift_B
     
     # Lift ratio (capped to avoid extreme values)
     lift_ratio <- pmin(pmax(lift_A / (lift_B + 1e-10), 0.01), 100)
@@ -269,8 +325,9 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param patterns Character vector of patterns to analyze
 #' @param group_A_seqs Character vector of sequences for group A
 #' @param group_B_seqs Character vector of sequences for group B
+#' @param group_names Character vector of actual group names (default: c("A", "B"))
 #' @return Data frame with confidence measures
-compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
@@ -282,15 +339,21 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     stop("group sequences cannot be empty")
   }
   
+  # Create dynamic column names using actual group names
+  confidence_col_A <- paste0("confidence_", group_names[1])
+  confidence_col_B <- paste0("confidence_", group_names[2])
+  
   results <- data.frame(
     pattern = patterns,
-    confidence_A = numeric(length(patterns)),
-    confidence_B = numeric(length(patterns)),
-    confidence_diff = numeric(length(patterns)),
-    confidence_ratio = numeric(length(patterns)),
-    balanced_confidence = numeric(length(patterns)),
     stringsAsFactors = FALSE
   )
+  
+  # Add columns with actual group names
+  results[[confidence_col_A]] <- numeric(length(patterns))
+  results[[confidence_col_B]] <- numeric(length(patterns))
+  results$confidence_diff <- numeric(length(patterns))
+  results$confidence_ratio <- numeric(length(patterns))
+  results$balanced_confidence <- numeric(length(patterns))
   
   n_A <- length(group_A_seqs)
   n_B <- length(group_B_seqs)
@@ -305,7 +368,6 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     
     # Skip patterns with no occurrences
     if (count_total == 0) {
-      results[i, 2:6] <- 0
       next
     }
     
@@ -313,8 +375,8 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     conf_A <- count_A / count_total
     conf_B <- count_B / count_total
     
-    results$confidence_A[i] <- conf_A
-    results$confidence_B[i] <- conf_B
+    results[[confidence_col_A]][i] <- conf_A
+    results[[confidence_col_B]][i] <- conf_B
     results$confidence_diff[i] <- conf_A - conf_B
     
     # Confidence ratio with small constant
@@ -345,8 +407,9 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param patterns Character vector of patterns to analyze
 #' @param group_A_seqs Character vector of sequences for group A
 #' @param group_B_seqs Character vector of sequences for group B
+#' @param group_names Character vector of actual group names (default: c("A", "B"))
 #' @return Data frame with effect size measures
-compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
@@ -356,6 +419,14 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
   }
   if (length(group_A_seqs) == 0 || length(group_B_seqs) == 0) {
     stop("group sequences cannot be empty")
+  }
+  
+  n_A <- length(group_A_seqs)
+  n_B <- length(group_B_seqs)
+  
+  # Warn about potential numerical issues with very large datasets
+  if (n_A > 10000 || n_B > 10000 || length(patterns) > 5000) {
+    cat("Note: Large dataset detected. Some effect size calculations may use approximations to avoid numerical overflow.\n")
   }
   
   results <- data.frame(
@@ -368,9 +439,6 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
     stringsAsFactors = FALSE
   )
   
-  n_A <- length(group_A_seqs)
-  n_B <- length(group_B_seqs)
-  
   for (i in seq_along(patterns)) {
     pattern <- patterns[i]
     
@@ -382,53 +450,117 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
     p_A <- count_A / n_A
     p_B <- count_B / n_B
     
-    # Cohen's h (effect size for proportions)
-    h <- 2 * (asin(sqrt(p_A)) - asin(sqrt(p_B)))
-    results$cohens_h[i] <- h
+    # Cohen's h (effect size for difference in proportions)
+    if (p_A == 0 && p_B == 0) {
+      cohens_h <- 0
+    } else {
+      # Use arcsine transformation
+      h_A <- 2 * asin(sqrt(pmax(0, pmin(1, p_A))))
+      h_B <- 2 * asin(sqrt(pmax(0, pmin(1, p_B))))
+      cohens_h <- h_A - h_B
+    }
     
     # Cohen's d (standardized mean difference)
+    # For binary data, use pooled standard deviation
     pooled_p <- (count_A + count_B) / (n_A + n_B)
     pooled_var <- pooled_p * (1 - pooled_p)
-    d <- ifelse(pooled_var == 0, 0, (p_A - p_B) / sqrt(pooled_var))
-    results$cohens_d[i] <- d
+    if (pooled_var > 0) {
+      cohens_d <- (p_A - p_B) / sqrt(pooled_var)
+    } else {
+      cohens_d <- 0
+    }
     
-    # Contingency table for other measures
-    present_A <- count_A
-    absent_A <- n_A - count_A
-    present_B <- count_B
-    absent_B <- n_B - count_B
+    # Create contingency table for chi-square based measures
+    # Present/Absent in each group
+    cont_table <- matrix(c(
+      count_A, n_A - count_A,      # Group A: present, absent
+      count_B, n_B - count_B       # Group B: present, absent
+    ), nrow = 2, byrow = TRUE)
     
-    # Chi-square components
-    n_total <- n_A + n_B
-    
-    chi_sq <- tryCatch({
-      if (n_total == 0) {
-        0
+    # Cramer's V
+    total_n <- n_A + n_B
+    if (total_n > 0) {
+      chi_sq <- suppressWarnings(tryCatch({
+        chisq.test(cont_table, correct = FALSE)
+      }, error = function(e) {
+        # If chi-square test fails (e.g., due to large numbers), return a dummy object
+        list(statistic = 0)
+      }))
+      
+      if (!is.null(chi_sq$statistic) && !is.na(chi_sq$statistic) && is.finite(chi_sq$statistic)) {
+        cramers_v <- sqrt(chi_sq$statistic / (total_n * (min(nrow(cont_table), ncol(cont_table)) - 1)))
+        # Ensure cramers_v is finite and not too large
+        if (!is.finite(cramers_v) || cramers_v > 1) {
+          cramers_v <- 0
+        }
       } else {
-        expected_11 <- (present_A + present_B) * (present_A + absent_A) / n_total
-        expected_12 <- (present_A + present_B) * (present_B + absent_B) / n_total
-        expected_21 <- (absent_A + absent_B) * (present_A + absent_A) / n_total
-        expected_22 <- (absent_A + absent_B) * (present_B + absent_B) / n_total
+        cramers_v <- 0
+      }
+    } else {
+      cramers_v <- 0
+    }
+    
+    # Phi coefficient (for 2x2 tables)
+    if (total_n > 0) {
+      a <- as.numeric(cont_table[1,1])  # Group A, present
+      b <- as.numeric(cont_table[1,2])  # Group A, absent
+      c <- as.numeric(cont_table[2,1])  # Group B, present
+      d <- as.numeric(cont_table[2,2])  # Group B, absent
+      
+      # Use safer calculation to avoid integer overflow
+      # Calculate each factor separately and check for potential overflow
+      factor1 <- a + b
+      factor2 <- c + d
+      factor3 <- a + c
+      factor4 <- b + d
+      
+      # Check if any factor would cause overflow when multiplied
+      max_safe_int <- .Machine$integer.max
+      if (any(c(factor1, factor2, factor3, factor4) > sqrt(max_safe_int))) {
+        # Use alternative calculation method for very large numbers
+        # phi = (ad - bc) / sqrt((a+b)(c+d)(a+c)(b+d))
+        # = (ad - bc) / sqrt(n_A * n_B * (total_present) * (total_absent))
+        total_present <- a + c
+        total_absent <- b + d
         
-        # Avoid division by zero
-        if (any(c(expected_11, expected_12, expected_21, expected_22) < 1e-10)) {
-          0
+        if (total_present > 0 && total_absent > 0 && n_A > 0 && n_B > 0) {
+          numerator <- a * d - b * c
+          # Use log-space calculation to avoid overflow
+          log_denom <- 0.5 * (log(n_A) + log(n_B) + log(total_present) + log(total_absent))
+          denom <- exp(log_denom)
+          phi_coefficient <- numerator / denom
         } else {
-          ((present_A - expected_11)^2 / expected_11) +
-          ((present_B - expected_12)^2 / expected_12) +
-          ((absent_A - expected_21)^2 / expected_21) +
-          ((absent_B - expected_22)^2 / expected_22)
+          phi_coefficient <- 0
+        }
+      } else {
+        # Standard calculation is safe
+        denom <- sqrt(factor1 * factor2 * factor3 * factor4)
+        if (denom > 0) {
+          phi_coefficient <- (a * d - b * c) / denom
+        } else {
+          phi_coefficient <- 0
         }
       }
-    }, error = function(e) 0)
+    } else {
+      phi_coefficient <- 0
+    }
     
-    # Cramer's V and Phi coefficient
-    results$cramers_v[i] <- sqrt(chi_sq / n_total)
-    results$phi_coefficient[i] <- sqrt(chi_sq / n_total)
-    
-    # Standardized difference (simple but robust)
+    # Standardized difference
     pooled_se <- sqrt(pooled_p * (1 - pooled_p) * (1/n_A + 1/n_B))
-    results$standardized_diff[i] <- ifelse(pooled_se == 0, 0, (p_A - p_B) / pooled_se)
+    
+    # Ensure all values are finite and reasonable before storing
+    cohens_h <- ifelse(is.finite(cohens_h), cohens_h, 0)
+    cohens_d <- ifelse(is.finite(cohens_d), cohens_d, 0)
+    cramers_v <- ifelse(is.finite(cramers_v), cramers_v, 0)
+    phi_coefficient <- ifelse(is.finite(phi_coefficient), phi_coefficient, 0)
+    standardized_diff <- ifelse(pooled_se == 0 || !is.finite(pooled_se), 0, (p_A - p_B) / pooled_se)
+    standardized_diff <- ifelse(is.finite(standardized_diff), standardized_diff, 0)
+    
+    results$cohens_h[i] <- cohens_h
+    results$cohens_d[i] <- cohens_d
+    results$cramers_v[i] <- cramers_v
+    results$phi_coefficient[i] <- phi_coefficient
+    results$standardized_diff[i] <- standardized_diff
   }
   
   # Sort by Cohen's h
@@ -439,30 +571,49 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
 }
 
 # ==============================================================================
-# MAIN ANALYSIS FUNCTION
+# MULTI-GROUP ANALYSIS FUNCTION
 # ==============================================================================
 
-#' Comprehensive Pattern Analysis
+#' Comprehensive Pattern Analysis for Multiple Groups
 #'
-#' Compute multiple difference measures for patterns in sequential data.
+#' Compute pattern analysis across multiple groups in sequential data.
+#' Supports both data.frame input and group_tna objects from the tna package.
 #'
-#' @param data Data frame with sequences in wide format
-#' @param group_col Column name or index containing group information (default: "Group")
+#' @param data Data frame with sequences in wide format OR a group_tna object
+#' @param group_col Column name or index containing group information (default: "Group").
+#'   Ignored if data is a group_tna object.
 #' @param min_length Minimum pattern length to analyze (default: 2)
 #' @param max_length Maximum pattern length to analyze (default: 5)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
-#' @param measures Character vector of measures to compute (default: all)
-#' @return List containing analysis results for each measure
-analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_length = 5,
-                             min_frequency = 2, 
-                             measures = c("support", "lift", "confidence", "effect_size")) {
+#' @param measures Character vector of measures to compute (default: "support")
+#' @return List containing analysis results
+analyze_patterns_multi_internal <- function(data, group_col = "Group", min_length = 2, max_length = 5,
+                                           min_frequency = 2, measures = c("support"), group_info = NULL) {
+  
+  # =====================================================================
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
+  # =====================================================================
+  
+  # Check if input is a group_tna object (if not already processed)
+  if (is.null(group_info) && is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group_col <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
+  }
   
   # Input validation
   if (!is.data.frame(data)) {
-    stop("data must be a data frame")
+    stop("'data' must be a data frame or group_tna object")
   }
   if (nrow(data) == 0) {
-    stop("data cannot be empty")
+    stop("'data' cannot be empty")
   }
   
   # Prepare data
@@ -473,12 +624,168 @@ analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_leng
   groups <- prepared_data$groups
   group_names <- prepared_data$group_names
   
-  # Split by group
-  group_A_seqs <- all_sequences[groups == group_names[1]]
-  group_B_seqs <- all_sequences[groups == group_names[2]]
+  # Split sequences by group
+  group_sequences <- list()
+  for (g in group_names) {
+    group_sequences[[g]] <- all_sequences[groups == g]
+    cat(sprintf("Group %s: %d sequences\n", g, length(group_sequences[[g]])))
+  }
   
-  cat(sprintf("Group %s: %d sequences\n", group_names[1], length(group_A_seqs)))
-  cat(sprintf("Group %s: %d sequences\n", group_names[2], length(group_B_seqs)))
+  # Extract all unique patterns
+  cat("Extracting patterns...\n")
+  all_patterns <- character(0)
+  for (length in min_length:max_length) {
+    for (seq in all_sequences) {
+      if (nchar(seq) > 0) {
+        patterns <- extract_ngrams(seq, length)
+        all_patterns <- c(all_patterns, patterns)
+      }
+    }
+  }
+  
+  # Filter by frequency
+  pattern_counts <- table(all_patterns)
+  frequent_patterns <- names(pattern_counts[pattern_counts >= min_frequency])
+  
+  if (length(frequent_patterns) == 0) {
+    max_freq <- if(length(pattern_counts) > 0) max(pattern_counts) else 0
+    stop("No patterns meet the minimum frequency threshold of ", min_frequency, 
+         ". Maximum pattern frequency found: ", max_freq, 
+         ". Try reducing min_frequency to ", max(1, max_freq), " or lower.")
+  }
+  
+  cat(sprintf("Found %d patterns meeting frequency threshold\n", length(frequent_patterns)))
+  
+  # Compute measures
+  results <- list()
+  
+  valid_measures <- c("support")  # Can extend with other multi-group measures
+  if (!all(measures %in% valid_measures)) {
+    stop("measures must be one or more of: ", paste(valid_measures, collapse = ", "))
+  }
+  
+  if ("support" %in% measures) {
+    cat("Computing multi-group support measures...\n")
+    results$support <- compute_support_measures_multi(frequent_patterns, group_sequences, group_names)
+  }
+  
+  # Add metadata
+  group_sizes <- sapply(group_sequences, length)
+  names(group_sizes) <- group_names
+  
+  results$metadata <- list(
+    group_names = group_names,
+    n_groups = length(group_names),
+    group_sizes = group_sizes,
+    n_patterns = length(frequent_patterns),
+    min_length = min_length,
+    max_length = max_length,
+    min_frequency = min_frequency,
+    group_tna_info = group_info  # Store original group_tna metadata
+  )
+  
+  cat("Multi-group analysis complete!\n")
+  
+  class(results) <- "pattern_analysis_multi"
+  return(results)
+}
+
+# ==============================================================================
+# MAIN ANALYSIS FUNCTION (keeping for backward compatibility)
+# ==============================================================================
+
+#' Comprehensive Pattern Analysis (Auto-detects 2 or Multiple Groups)
+#'
+#' Automatically detects the number of groups and performs appropriate pattern analysis.
+#' For 2 groups: provides detailed statistical measures including lift, confidence, effect sizes.
+#' For 3+ groups: provides multi-group support-based analysis with discrimination measures.
+#' Supports both data.frame input and group_tna objects from the tna package.
+#'
+#' @param data Data frame with sequences in wide format OR a group_tna object
+#' @param group_col Column name or index containing group information (default: "Group").
+#'   Ignored if data is a group_tna object.
+#' @param min_length Minimum pattern length to analyze (default: 2)
+#' @param max_length Maximum pattern length to analyze (default: 5)
+#' @param min_frequency Minimum frequency required to include a pattern (default: 2). 
+#'   If too high, may result in "No patterns meet threshold" error. Try reducing if this occurs.
+#' @param measures Character vector of measures to compute (default: auto-selected based on group count)
+#' @param statistical Whether to include statistical testing for 2-group analysis (default: FALSE)
+#' @param correction Multiple comparison correction method (default: "bonferroni").
+#'   Supports all R p.adjust methods: "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"
+#' @return List containing analysis results (structure depends on number of groups detected)
+#' @export
+analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_length = 5,
+                            min_frequency = 2, measures = "auto", statistical = FALSE,
+                            correction = "bonferroni") {
+  
+  # =====================================================================
+  # INPUT VALIDATION AND GROUP_TNA SUPPORT
+  # =====================================================================
+  
+  # Check if input is a group_tna object
+  if (is_group_tna(data)) {
+    cat("Detected group_tna object, converting to tnaExtras format...\n")
+    converted <- convert_group_tna(data)
+    data <- converted$data
+    group_col <- converted$group_col
+    group_info <- converted$group_info
+    
+    cat("Successfully converted group_tna object:\n")
+    cat("  Label:", group_info$label %||% "Unknown", "\n")
+    cat("  Groups:", paste(group_info$levels, collapse = ", "), "\n")
+    cat("  Total sequences:", nrow(data), "\n")
+  } else {
+    group_info <- NULL
+  }
+  
+  # Input validation
+  if (!is.data.frame(data)) {
+    stop("'data' must be a data frame or group_tna object")
+  }
+  if (nrow(data) == 0) {
+    stop("'data' cannot be empty")
+  }
+  
+  # Prepare data
+  cat("Preparing sequence data...\n")
+  prepared_data <- prepare_sequence_data(data, group_col, min_length)
+  
+  all_sequences <- prepared_data$sequences
+  groups <- prepared_data$groups
+  group_names <- prepared_data$group_names
+  
+  # Auto-detect analysis type based on number of groups
+  n_groups <- length(group_names)
+  cat("Detected", n_groups, "groups:", paste(group_names, collapse = ", "), "\n")
+  
+  if (n_groups > 2) {
+    # Multi-group analysis
+    cat("Using multi-group analysis for", n_groups, "groups\n")
+    
+    # Auto-select measures for multi-group
+    if (identical(measures, "auto")) {
+      measures <- "support"
+    }
+    
+    # Delegate to multi-group analysis
+    return(analyze_patterns_multi_internal(data, group_col, min_length, max_length, 
+                                          min_frequency, measures, group_info))
+  } else {
+    # Two-group analysis
+    cat("Using two-group analysis for", n_groups, "groups\n")
+    
+    # Auto-select measures for two-group
+    if (identical(measures, "auto")) {
+      measures <- c("support", "lift", "confidence", "effect_size")
+    }
+  }
+  
+  # Split sequences by group
+  group_A_sequences <- all_sequences[groups == group_names[1]]
+  group_B_sequences <- all_sequences[groups == group_names[2]]
+  
+  cat(sprintf("Group %s: %d sequences\n", group_names[1], length(group_A_sequences)))
+  cat(sprintf("Group %s: %d sequences\n", group_names[2], length(group_B_sequences)))
   
   # Extract all unique patterns
   cat("Extracting patterns...\n")
@@ -506,38 +813,45 @@ analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_leng
   results <- list()
   
   valid_measures <- c("support", "lift", "confidence", "effect_size")
+  
+  # Handle "all" parameter
+  if (length(measures) == 1 && measures[1] == "all") {
+    measures <- valid_measures
+  }
+  
   if (!all(measures %in% valid_measures)) {
     stop("measures must be one or more of: ", paste(valid_measures, collapse = ", "))
   }
   
   if ("support" %in% measures) {
     cat("Computing support measures...\n")
-    results$support <- compute_support_measures(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$support <- compute_support_measures(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   if ("lift" %in% measures) {
     cat("Computing lift measures...\n")
-    results$lift <- compute_lift_measures(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$lift <- compute_lift_measures(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   if ("confidence" %in% measures) {
     cat("Computing confidence measures...\n")
-    results$confidence <- compute_confidence_measures(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$confidence <- compute_confidence_measures(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   if ("effect_size" %in% measures) {
     cat("Computing effect size measures...\n")
-    results$effect_size <- compute_effect_sizes(frequent_patterns, group_A_seqs, group_B_seqs)
+    results$effect_size <- compute_effect_sizes(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   # Add metadata
   results$metadata <- list(
     group_names = group_names,
-    n_sequences = c(length(group_A_seqs), length(group_B_seqs)),
+    n_sequences = c(length(group_A_sequences), length(group_B_sequences)),
     n_patterns = length(frequent_patterns),
     min_length = min_length,
     max_length = max_length,
-    min_frequency = min_frequency
+    min_frequency = min_frequency,
+    group_tna_info = group_info  # Store original group_tna metadata
   )
   
   cat("Analysis complete!\n")
@@ -549,6 +863,65 @@ analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_leng
 # ==============================================================================
 # PRINT AND SUMMARY METHODS
 # ==============================================================================
+
+#' Print method for pattern_analysis_multi objects
+#' @param x pattern_analysis_multi object
+#' @param ... additional arguments
+print.pattern_analysis_multi <- function(x, ...) {
+  cat("Multi-Group Pattern Analysis Results\n")
+  cat("====================================\n\n")
+  
+  if (!is.null(x$metadata)) {
+    cat("Groups:", paste(x$metadata$group_names, collapse = ", "), "\n")
+    cat("Group sizes:\n")
+    for (i in seq_along(x$metadata$group_names)) {
+      cat(sprintf("  %s: %d sequences\n", x$metadata$group_names[i], x$metadata$group_sizes[i]))
+    }
+    cat("Patterns analyzed:", x$metadata$n_patterns, "\n")
+    cat("Pattern length range:", x$metadata$min_length, "to", x$metadata$max_length, "\n\n")
+  }
+  
+  cat("Available measures:\n")
+  for (measure in names(x)) {
+    if (measure != "metadata") {
+      n_patterns <- nrow(x[[measure]])
+      cat(sprintf("  %s: %d patterns\n", measure, n_patterns))
+    }
+  }
+  
+  cat("\nUse summary(result, 'measure_name') to view detailed results.\n")
+}
+
+#' Summary method for pattern_analysis_multi objects
+#' @param object pattern_analysis_multi object
+#' @param measure which measure to summarize
+#' @param top_n number of top patterns to show
+#' @param ... additional arguments
+summary.pattern_analysis_multi <- function(object, measure = NULL, top_n = 10, ...) {
+  available_measures <- names(object)[names(object) != "metadata"]
+  
+  if (is.null(measure)) {
+    measure <- available_measures[1]
+  }
+  
+  if (!measure %in% available_measures) {
+    stop("Measure '", measure, "' not found. Available: ", 
+         paste(available_measures, collapse = ", "))
+  }
+  
+  cat("Multi-Group Pattern Analysis Summary -", toupper(measure), "Measures\n")
+  cat(paste(rep("=", 60), collapse = ""), "\n\n")
+  
+  data <- object[[measure]]
+  n_show <- min(top_n, nrow(data))
+  
+  cat("Top", n_show, "patterns by discrimination:\n")
+  print(head(data, n_show))
+  
+  if (nrow(data) > n_show) {
+    cat(sprintf("\n... and %d more patterns\n", nrow(data) - n_show))
+  }
+}
 
 #' Print method for pattern_analysis objects
 #' @param x pattern_analysis object
@@ -604,4 +977,25 @@ summary.pattern_analysis <- function(object, measure = NULL, top_n = 10, ...) {
   if (nrow(data) > n_show) {
     cat(sprintf("\n... and %d more patterns\n", nrow(data) - n_show))
   }
+}
+
+# ==============================================================================
+# ALIASES FOR BACKWARD COMPATIBILITY
+# ==============================================================================
+
+#' Multi-Group Pattern Analysis (Alias for analyze_patterns)
+#'
+#' This function is now an alias for analyze_patterns() which auto-detects
+#' the number of groups. For multi-group analysis, use analyze_patterns() directly.
+#' 
+#' @param ... All arguments passed to analyze_patterns()
+#' @return Same as analyze_patterns()
+#' @export
+analyze_patterns_multi <- function(...) {
+  # Force multi-group measures if not specified
+  args <- list(...)
+  if (is.null(args$measures) || identical(args$measures, "auto")) {
+    args$measures <- "support"
+  }
+  do.call(analyze_patterns, args)
 } 
