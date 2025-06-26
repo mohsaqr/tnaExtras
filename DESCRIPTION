@@ -14,6 +14,8 @@ Description: A comprehensive toolkit for analyzing temporal patterns in sequenti
     and rules in transaction data. Includes statistical testing capabilities, 
     comprehensive visualization support, and measures for system stability and 
     favorability analysis. All algorithms implemented with no external dependencies.
+    Package includes real student engagement dataset with 1000 sequences across 25 
+    time points for demonstration and educational purposes.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

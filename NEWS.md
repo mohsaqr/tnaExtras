@@ -2,6 +2,14 @@
 
 ## Major New Features
 
+### Student Engagement Dataset
+* **NEW**: Added comprehensive `engagement_data` dataset with 1000 student sequences
+* **NEW**: 25 time points per sequence with 3 engagement levels (Active, Average, Disengaged)  
+* **NEW**: 3 engagement groups (Low: 260, Moderate: 225, Engaged: 515 students)
+* **NEW**: Comprehensive documentation with detailed examples and use cases
+* **NEW**: `demo_engagement_analysis.R` - Complete demonstration script showcasing all package capabilities
+* **NEW**: Perfect dataset for educational and research purposes in learning analytics
+
 ### Association Rule Learning
 * **NEW**: Complete association rule mining implementation with Apriori and FP-Growth algorithms
 * **NEW**: `apriori_rules()` - Classic Apriori algorithm for frequent itemset mining and rule generation

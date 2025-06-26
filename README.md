@@ -34,6 +34,27 @@ install.packages("devtools")
 devtools::install_github("mohsaqr/tnaExtras")
 ```
 
+## Included Datasets
+
+### Student Engagement Dataset (NEW in v0.3.0)
+
+The package includes a comprehensive student engagement dataset (`engagement_data`) with:
+- **1000 students** with sequential engagement patterns
+- **25 time points** per student sequence  
+- **3 engagement groups**: Low (260 students), Moderate (225 students), Engaged (515 students)
+- **3 engagement states**: Active, Average, Disengaged
+- Perfect for demonstrating all tnaExtras analysis capabilities
+
+```r
+# Load and explore the dataset
+data(engagement_data)
+summary(engagement_data)
+
+# Quick analysis example
+patterns <- analyze_patterns_multi(engagement_data, group_col = "Group")
+rules <- apriori_rules(engagement_data[,2:26], min_support = 0.1)
+```
+
 ## Main Functions
 
 ### Association Rule Learning (NEW in v0.3.0)
