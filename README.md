@@ -306,7 +306,7 @@ print_indices_summary(indices)
 
 - Chi-square tests for independence
 - Fisher's exact tests for small samples
-- Multiple comparison corrections (Bonferroni, Holm, BH, etc.)
+- Multiple comparison corrections (all R p.adjust methods: Holm, Hochberg, Hommel, Bonferroni, BH, BY, FDR, none)
 - Automatic test selection based on expected frequencies
 
 ## Example Workflows
