@@ -345,7 +345,7 @@ compare_sequences_multi <- function(data, group, min_length = 2, max_length = 5,
 #'   When TRUE, performs Chi-squared or Fisher's Exact tests; when FALSE, uses
 #'   discrimination score analysis
 #' @param correction Character, multiple comparison correction method (default: "bonferroni").
-#'   Supports: "bonferroni", "holm", "hochberg", "BH", "BY", "none"
+#'   Supports all R p.adjust methods: "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"
 #' @param test_method Character, statistical test selection (default: "auto").
 #'   Options: "auto", "fisher", "chi.squared"
 #' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5)
@@ -421,8 +421,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     stop("'detailed' and 'statistical' must be logical values", call. = FALSE)
   }
   
-  if (!correction %in% c("bonferroni", "holm", "hochberg", "BH", "BY", "none")) {
-    stop("'correction' must be one of: bonferroni, holm, hochberg, BH, BY, none", call. = FALSE)
+  if (!correction %in% p.adjust.methods) {
+    stop("'correction' must be one of: ", paste(p.adjust.methods, collapse = ", "), call. = FALSE)
   }
   
   if (!test_method %in% c("auto", "fisher", "chi.squared")) {

@@ -711,7 +711,8 @@ analyze_patterns_multi <- function(data, group_col = "Group", min_length = 2, ma
 #'   If too high, may result in "No patterns meet threshold" error. Try reducing if this occurs.
 #' @param measures Character vector of measures to compute (default: all)
 #' @param statistical Whether to include statistical testing (default: FALSE)
-#' @param correction Multiple comparison correction method (default: "bonferroni")
+#' @param correction Multiple comparison correction method (default: "bonferroni").
+#'   Supports all R p.adjust methods: "holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"
 #' @return List containing analysis results
 analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_length = 5,
                             min_frequency = 2, measures = c("support", "lift", "confidence", "effect_size"), statistical = FALSE,
