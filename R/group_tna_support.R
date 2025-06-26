@@ -48,141 +48,94 @@ extract_group_tna_info <- function(group_tna_obj) {
   return(info)
 }
 
-#' Convert group_tna object to tnaExtras-compatible format
+#' Convert group_tna Object to tnaExtras Format
+#'
+#' Converts a group_tna object (list of tna models) to the format expected by tnaExtras functions.
+#' Combines data from all groups and converts numeric codes back to text labels.
 #'
 #' @param group_tna_obj A group_tna object from the tna package
-#' @return List with $data (data.frame) and $group_info (metadata)
+#' @return List with data, groups, group_col, and group_info
+#' @export
 convert_group_tna <- function(group_tna_obj) {
   if (!is_group_tna(group_tna_obj)) {
-    stop("Object is not a group_tna object")
+    stop("Input must be a group_tna object")
   }
   
-  # Extract metadata
-  group_info <- extract_group_tna_info(group_tna_obj)
-  
-  # Try to use combine_data if available (from tna package)
-  if (exists("combine_data") && is.function(get("combine_data"))) {
-    tryCatch({
-      combined_data <- get("combine_data")(group_tna_obj)
-      
-      # The combined data should have a .group column
-      if (".group" %in% names(combined_data)) {
-        return(list(
-          data = combined_data,
-          group_info = group_info,
-          group_col = ".group"
-        ))
-      }
-    }, error = function(e) {
-      warning("Failed to use combine_data(), falling back to manual conversion")
-    })
+  # Extract group names
+  group_names <- names(group_tna_obj)
+  if (is.null(group_names) || length(group_names) == 0) {
+    stop("group_tna object must have named groups")
   }
   
-  # Manual conversion if combine_data is not available
-  combined_data <- convert_group_tna_manual(group_tna_obj, group_info)
+  # Get labels from first group (should be same across all groups)
+  first_group <- group_tna_obj[[1]]
+  if (!"labels" %in% names(first_group)) {
+    stop("tna objects must contain 'labels' element")
+  }
+  labels <- first_group$labels
+  
+  # Initialize lists to store all data
+  all_data_frames <- list()
+  all_groups <- character()
+  
+  # Process each group
+  for (group_name in group_names) {
+    tna_obj <- group_tna_obj[[group_name]]
+    
+    # Validate tna object structure
+    if (!"data" %in% names(tna_obj)) {
+      stop("tna object for group '", group_name, "' must contain 'data' element")
+    }
+    
+    # Get numeric data
+    numeric_data <- tna_obj$data
+    n_sequences <- nrow(numeric_data)
+    
+    # Convert numeric codes to text labels
+    text_data <- numeric_data  # Start with the same structure
+    for (col_idx in 1:ncol(numeric_data)) {
+      col_values <- numeric_data[, col_idx]
+      # Convert numeric codes to text labels
+      text_values <- character(length(col_values))
+      valid_indices <- !is.na(col_values) & col_values >= 1 & col_values <= length(labels)
+      text_values[valid_indices] <- labels[col_values[valid_indices]]
+      text_values[!valid_indices] <- NA_character_
+      text_data[, col_idx] <- text_values
+    }
+    
+    # Convert to data.frame
+    text_data <- as.data.frame(text_data, stringsAsFactors = FALSE)
+    # Ensure column names are preserved
+    colnames(text_data) <- colnames(numeric_data)
+    
+    # Store the data frame and group info
+    all_data_frames[[group_name]] <- text_data
+    all_groups <- c(all_groups, rep(group_name, n_sequences))
+  }
+  
+  # Combine all data frames using rbind
+  combined_data <- do.call(rbind, all_data_frames)
+  
+  # Reset row names
+  rownames(combined_data) <- NULL
+  
+  # Add group column
+  combined_data$Group <- all_groups
+  
+  # Create metadata
+  group_info <- list(
+    label = "Group_TNA",
+    levels = group_names,
+    original_labels = labels,
+    n_groups = length(group_names)
+  )
   
   return(list(
     data = combined_data,
-    group_info = group_info,
-    group_col = ".group"
+    groups = all_groups,
+    group_col = "Group",
+    group_info = group_info
   ))
-}
-
-#' Manual conversion of group_tna to data.frame
-#'
-#' @param group_tna_obj A group_tna object
-#' @param group_info Metadata extracted from the object
-#' @return Data.frame with .group column
-convert_group_tna_manual <- function(group_tna_obj, group_info) {
-  # Initialize result list
-  all_data <- list()
-  
-  # Get group names
-  group_names <- group_info$levels
-  if (is.null(group_names)) {
-    group_names <- names(group_tna_obj)
-  }
-  if (is.null(group_names)) {
-    group_names <- paste0("Group_", seq_along(group_tna_obj))
-  }
-  
-  # Get labels for converting numeric codes back to text
-  labels <- group_info$state_labels
-  
-  # Process each group
-  for (i in seq_along(group_tna_obj)) {
-    group_data <- group_tna_obj[[i]]
-    group_name <- group_names[i]
-    
-    # Handle different possible structures
-    if (is.data.frame(group_data)) {
-      # If it's already a data.frame, use it directly
-      group_df <- group_data
-    } else if (is.matrix(group_data)) {
-      # If it's a matrix, convert to data.frame
-      group_df <- as.data.frame(group_data)
-    } else if (is.list(group_data) && "data" %in% names(group_data)) {
-      # If it's a list with a data component (typical group_tna structure)
-      group_df <- as.data.frame(group_data$data)
-      
-      # If we have labels and the data is numeric, convert back to text
-      if (!is.null(group_data$labels) && is.null(labels)) {
-        labels <- group_data$labels
-      }
-    } else if (is.list(group_data) && length(group_data) > 0) {
-      # Try to convert list to data.frame
-      tryCatch({
-        group_df <- as.data.frame(group_data)
-      }, error = function(e) {
-        # If conversion fails, try to extract sequence-like data
-        sequence_cols <- sapply(group_data, function(x) is.vector(x) && length(x) > 1)
-        if (any(sequence_cols)) {
-          group_df <- as.data.frame(group_data[sequence_cols])
-        } else {
-          warning("Could not convert group ", i, " to data.frame")
-          group_df <- data.frame()
-        }
-      })
-    } else {
-      warning("Unknown group_tna structure for group ", i)
-      group_df <- data.frame()
-    }
-    
-    # Convert numeric codes back to text labels if available
-    if (!is.null(labels) && nrow(group_df) > 0) {
-      # Check if data appears to be numeric codes
-      sequence_cols <- grep("^T[0-9]+", names(group_df))
-      if (length(sequence_cols) > 0) {
-        for (col in sequence_cols) {
-          if (is.numeric(group_df[[col]])) {
-            # Convert numeric codes to text labels
-            # Handle NAs properly
-            group_df[[col]] <- ifelse(
-              is.na(group_df[[col]]) | group_df[[col]] == 0,
-              NA,
-              labels[group_df[[col]]]
-            )
-          }
-        }
-      }
-    }
-    
-    # Add group column
-    if (nrow(group_df) > 0) {
-      group_df$.group <- group_name
-      all_data[[i]] <- group_df
-    }
-  }
-  
-  # Combine all groups
-  if (length(all_data) > 0) {
-    combined_data <- do.call(rbind, all_data)
-    rownames(combined_data) <- NULL
-  } else {
-    combined_data <- data.frame(.group = character(0))
-  }
-  
-  return(combined_data)
 }
 
 #' Create a mock group_tna object for testing
