@@ -46,13 +46,33 @@ The package includes a comprehensive student engagement dataset (`engagement_dat
 - Perfect for demonstrating all tnaExtras analysis capabilities
 
 ```r
-# Load and explore the dataset
+# Load and explore the engagement dataset
 data(engagement_data)
 summary(engagement_data)
 
 # Quick analysis example
 patterns <- analyze_patterns_multi(engagement_data, group_col = "Group")
 rules <- apriori_rules(engagement_data[,2:26], min_support = 0.1)
+```
+
+### Student Self-Regulation Dataset (NEW in v0.3.0)
+
+The package also includes a comprehensive student self-regulation dataset (`regulation_grouped`) with:
+- **2000 students** with sequential self-regulation patterns  
+- **26 time points** per student sequence
+- **3 academic disciplines**: Business (800 students), Science (400 students), History (800 students)
+- **9 regulation states**: adapt, cohesion, consensus, coregulate, discuss, emotion, monitor, plan, synthesis
+- Derived from the `tna` package for cross-disciplinary regulation analysis
+
+```r
+# Load and explore the regulation dataset
+data(regulation_grouped)
+summary(regulation_grouped)
+
+# Quick regulation analysis example
+regulation_patterns <- analyze_patterns_multi(regulation_grouped, group_col = "Group")
+regulation_transactions <- lapply(1:100, function(i) as.character(regulation_grouped[i, 1:26]))
+regulation_rules <- apriori_rules(regulation_transactions, min_support = 0.05)
 ```
 
 ## Main Functions

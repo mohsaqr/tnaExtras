@@ -10,6 +10,15 @@
 * **NEW**: `demo_engagement_analysis.R` - Complete demonstration script showcasing all package capabilities
 * **NEW**: Perfect dataset for educational and research purposes in learning analytics
 
+### Student Self-Regulation Dataset  
+* **NEW**: Added comprehensive `regulation_grouped` dataset with 2000 student sequences
+* **NEW**: 26 time points per sequence with 9 self-regulation behaviors
+* **NEW**: 3 academic disciplines (Business: 800, Science: 400, History: 800 students)  
+* **NEW**: Regulation states: adapt, cohesion, consensus, coregulate, discuss, emotion, monitor, plan, synthesis
+* **NEW**: Derived from `tna` package for cross-disciplinary analysis
+* **NEW**: `demo_regulation_analysis.R` - Complete regulation analysis demonstration
+* **NEW**: Perfect for studying self-regulation differences across academic domains
+
 ### Association Rule Learning
 * **NEW**: Complete association rule mining implementation with Apriori and FP-Growth algorithms
 * **NEW**: `apriori_rules()` - Classic Apriori algorithm for frequent itemset mining and rule generation
