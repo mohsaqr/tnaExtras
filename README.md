@@ -2,17 +2,23 @@
 
 A comprehensive R package for analyzing temporal patterns in sequential data. This package provides tools for sequence comparison, pattern analysis, and computation of sequence-level indices with focus on complexity systems, Markov chain dynamics, and temporal network analysis.
 
-**NEW in v0.2.0: Multi-Group Support** - Now supports analysis across multiple groups (3+) in addition to the original two-group comparisons.
+**NEW in v0.3.0: Association Rule Learning** - Complete implementation of Apriori and FP-Growth algorithms for discovering frequent patterns and association rules in transaction data.
+
+**Enhanced in v0.2.0: Multi-Group Support** - Now supports analysis across multiple groups (3+) in addition to the original two-group comparisons.
 
 ## Features
 
+- **Association Rule Learning**: Complete implementation of Apriori and FP-Growth algorithms for mining frequent patterns and association rules
+  - **NEW**: `apriori_rules()` and `fp_growth_rules()` functions
+  - **NEW**: Comprehensive visualization suite with 5 different plot types
+  - **NEW**: Advanced rule filtering, ranking, and analysis utilities
 - **Pattern Analysis**: Comprehensive analysis of pattern differences between groups using support, lift, confidence, and effect size measures
-  - **NEW**: Multi-group pattern analysis with `analyze_patterns_multi()`
+  - **Enhanced**: Multi-group pattern analysis with `analyze_patterns_multi()`
 - **Sequence Comparison**: Advanced sequence comparison with statistical testing capabilities (chi-square, Fisher's exact tests)
-  - **NEW**: Multi-group sequence comparison with `compare_sequences_multi()`
+  - **Enhanced**: Multi-group sequence comparison with `compare_sequences_multi()`
 - **Sequence Indices**: Computation of sequence-level statistics and complexity measures including entropy, diversity, and system dynamics
 - **Statistical Testing**: Built-in statistical testing with multiple comparison corrections
-- **Visualization**: Heatmap visualizations for pattern analysis results
+- **Visualization**: Comprehensive visualization support including heatmaps, scatter plots, network diagrams, and quality metrics
 
 ## Installation
 
@@ -28,7 +34,143 @@ devtools::install_github("mohsaqr/tnaExtras")
 
 ## Main Functions
 
-### Multi-Group Analysis (NEW)
+### Association Rule Learning (NEW in v0.3.0)
+
+#### 1. `apriori_rules()`
+
+Discovers association rules using the classic Apriori algorithm:
+
+```r
+library(tnaExtras)
+
+# Simple market basket data
+transactions <- list(
+  c("bread", "milk", "eggs"),
+  c("bread", "butter", "jam"),
+  c("milk", "eggs", "cheese"),
+  c("bread", "milk", "butter"),
+  c("eggs", "cheese", "yogurt")
+)
+
+# Run Apriori algorithm
+rules <- apriori_rules(transactions, 
+                      min_support = 0.2, 
+                      min_confidence = 0.6,
+                      min_lift = 1.0)
+
+print(rules)
+summary(rules)
+```
+
+#### 2. `fp_growth_rules()`
+
+Efficient pattern mining using the FP-Growth algorithm:
+
+```r
+# Same transaction data
+rules_fp <- fp_growth_rules(transactions, 
+                           min_support = 0.2, 
+                           min_confidence = 0.6)
+
+# Compare algorithms
+compare_rule_algorithms(list(
+  Apriori = rules,
+  FP_Growth = rules_fp
+))
+```
+
+#### 3. Association Rules Visualization
+
+Multiple visualization options using base R graphics:
+
+```r
+# Scatter plot: Support vs Confidence, colored by Lift
+plot_rules_scatter(rules)
+
+# Network diagram showing item relationships
+plot_rules_network(rules, layout = "force")
+
+# Quality metrics distribution
+plot_rules_quality(rules)
+
+# Frequency bar chart
+plot_itemset_frequency(rules)
+
+# Matrix visualization
+plot_rules_matrix(rules)
+
+# Generic plot method
+plot(rules, type = "scatter")
+plot(rules, type = "network")
+```
+
+#### 4. Rule Analysis and Filtering
+
+Advanced rule manipulation and analysis:
+
+```r
+# Filter rules by quality metrics
+high_quality_rules <- filter_association_rules(rules, 
+                                              min_confidence = 0.8,
+                                              min_lift = 1.5)
+
+# Rank rules by different metrics
+top_support_rules <- rank_association_rules(rules, by = "support")
+top_lift_rules <- rank_association_rules(rules, by = "lift")
+
+# Extract rules containing specific items
+bread_rules <- extract_rules_by_item(rules, "bread")
+milk_antecedent_rules <- extract_rules_by_item(rules, "milk", side = "antecedent")
+
+# Find redundant rules
+redundant <- find_redundant_rules(rules)
+clean_rules <- rules$rules[!redundant, ]
+
+# Calculate rule overlap/similarity
+overlap_matrix <- calculate_rule_overlap(rules$rules, method = "jaccard")
+```
+
+#### 5. Data Format Support
+
+Works with multiple input formats:
+
+```r
+# List format (each element is a transaction)
+list_data <- list(c("A", "B"), c("B", "C"), c("A", "C"))
+
+# Data frame format (transaction ID and item columns)
+df_data <- data.frame(
+  transaction = c(1, 1, 2, 2, 3, 3),
+  item = c("A", "B", "B", "C", "A", "C")
+)
+
+# Binary matrix format
+matrix_data <- matrix(c(1,1,0, 1,0,1, 0,1,1), nrow=3)
+colnames(matrix_data) <- c("A", "B", "C")
+
+# All formats work with both algorithms
+rules_list <- apriori_rules(list_data)
+rules_df <- fp_growth_rules(df_data)
+rules_matrix <- apriori_rules(matrix_data)
+```
+
+#### 6. Export and Utility Functions
+
+```r
+# Export rules to different formats
+export_association_rules(rules, "rules.csv", format = "csv")
+export_association_rules(rules, "rules.json", format = "json")
+export_association_rules(rules, "rules.txt", format = "txt")
+
+# Calculate specific metrics
+metrics <- calculate_rule_metrics(c("bread"), c("milk"), transaction_matrix)
+support <- calculate_itemset_support(c("bread", "milk"), transaction_matrix)
+
+# Convert rules back to transactions for further analysis
+rule_transactions <- rules_to_transactions(rules$rules)
+```
+
+### Multi-Group Analysis (Enhanced in v0.2.0)
 
 #### 1. `analyze_patterns_multi()`
 
@@ -167,6 +309,55 @@ print_indices_summary(indices)
 
 ## Example Workflows
 
+### Association Rule Learning Workflow
+
+```r
+library(tnaExtras)
+
+# 1. Prepare your transaction data
+transactions <- list(
+  c("bread", "milk", "eggs"),
+  c("bread", "butter", "jam"),
+  c("milk", "eggs", "cheese"),
+  c("bread", "milk", "butter"),
+  c("eggs", "cheese", "yogurt"),
+  c("bread", "jam"),
+  c("milk", "cheese", "yogurt")
+)
+
+# 2. Mine association rules using Apriori
+apriori_rules_result <- apriori_rules(transactions, 
+                                     min_support = 0.2,
+                                     min_confidence = 0.6,
+                                     min_lift = 1.0)
+
+# 3. Mine association rules using FP-Growth
+fp_growth_rules_result <- fp_growth_rules(transactions, 
+                                         min_support = 0.2,
+                                         min_confidence = 0.6)
+
+# 4. Compare algorithms
+compare_rule_algorithms(list(
+  Apriori = apriori_rules_result,
+  FP_Growth = fp_growth_rules_result
+))
+
+# 5. Analyze and filter rules
+high_quality_rules <- filter_association_rules(apriori_rules_result$rules,
+                                              min_confidence = 0.8,
+                                              min_lift = 1.5)
+
+bread_rules <- extract_rules_by_item(apriori_rules_result$rules, "bread")
+
+# 6. Visualize results
+plot_rules_scatter(apriori_rules_result)
+plot_rules_network(apriori_rules_result, top_n = 15)
+plot_rules_quality(apriori_rules_result)
+
+# 7. Export results
+export_association_rules(apriori_rules_result, "market_rules.csv")
+```
+
 ### Multi-Group Workflow
 
 ```r
@@ -262,8 +453,9 @@ The package includes built-in visualization capabilities:
 
 ## Dependencies
 
-- Base R (stats, graphics, grDevices, utils)
-- Suggested: testthat, knitr, rmarkdown
+- **Base R only** (stats, graphics, grDevices, utils)
+- **Zero external dependencies** for all core functionality including association rule learning
+- Suggested: testthat, knitr, rmarkdown (for development and documentation only)
 
 ## Contributing
 
@@ -279,5 +471,5 @@ If you use this package in your research, please cite:
 
 ```
 Mohammed Saqr (2025). tnaExtras: Transition Network Analysis and Sequential Pattern Detection Extras.
-R package version 0.2.0. https://github.com/mohsaqr/tnaExtras
+R package version 0.3.0. https://github.com/mohsaqr/tnaExtras
 ``` 
