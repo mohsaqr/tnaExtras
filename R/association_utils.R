@@ -13,16 +13,16 @@
 #' @return List with standardized transactions and metadata
 #' @export
 #' @examples
-#' # List format
-#' trans_list <- list(c("A", "B"), c("B", "C"), c("A", "C"))
-#' prepared <- prepare_transactions(trans_list)
+#' # List format - learning activities
+#' learning_sessions <- list(c("plan", "discuss"), c("discuss", "execute"), c("plan", "execute"))
+#' prepared <- prepare_transactions(learning_sessions)
 #' 
-#' # Data frame format
-#' df <- data.frame(
-#'   transaction = c(1, 1, 2, 2, 3, 3),
-#'   item = c("A", "B", "B", "C", "A", "C")
+#' # Data frame format - student actions
+#' student_actions <- data.frame(
+#'   student_id = c(1, 1, 2, 2, 3, 3),
+#'   action = c("plan", "discuss", "discuss", "execute", "plan", "execute")
 #' )
-#' prepared <- prepare_transactions(df, transaction_col = "transaction", item_cols = "item")
+#' prepared <- prepare_transactions(student_actions, transaction_col = "student_id", item_cols = "action")
 prepare_transactions <- function(data, item_cols = NULL, transaction_col = NULL) {
   
   if (is.list(data) && !is.data.frame(data)) {

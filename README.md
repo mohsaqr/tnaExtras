@@ -45,13 +45,13 @@ Discovers association rules using the classic Apriori algorithm:
 ```r
 library(tnaExtras)
 
-# Simple market basket data
+# Learning activity sequences
 transactions <- list(
-  c("bread", "milk", "eggs"),
-  c("bread", "butter", "jam"),
-  c("milk", "eggs", "cheese"),
-  c("bread", "milk", "butter"),
-  c("eggs", "cheese", "yogurt")
+  c("plan", "discuss", "execute", "reflect"),
+  c("plan", "research", "analyze", "present"),
+  c("discuss", "execute", "collaborate", "reflect"),
+  c("plan", "discuss", "execute", "evaluate"),
+  c("research", "analyze", "collaborate", "present")
 )
 
 # Run Apriori algorithm
@@ -69,7 +69,7 @@ summary(rules)
 Efficient pattern mining using the FP-Growth algorithm:
 
 ```r
-# Same transaction data
+# Same learning activity data
 rules_fp <- fp_growth_rules(transactions, 
                            min_support = 0.2, 
                            min_confidence = 0.6)
@@ -120,9 +120,9 @@ high_quality_rules <- filter_association_rules(rules,
 top_support_rules <- rank_association_rules(rules, by = "support")
 top_lift_rules <- rank_association_rules(rules, by = "lift")
 
-# Extract rules containing specific items
-bread_rules <- extract_rules_by_item(rules, "bread")
-milk_antecedent_rules <- extract_rules_by_item(rules, "milk", side = "antecedent")
+# Extract rules containing specific learning actions
+planning_rules <- extract_rules_by_item(rules, "plan")
+discuss_antecedent_rules <- extract_rules_by_item(rules, "discuss", side = "antecedent")
 
 # Find redundant rules
 redundant <- find_redundant_rules(rules)
@@ -165,8 +165,8 @@ export_association_rules(rules, "rules.json", format = "json")
 export_association_rules(rules, "rules.txt", format = "txt")
 
 # Calculate specific metrics
-metrics <- calculate_rule_metrics(c("bread"), c("milk"), transaction_matrix)
-support <- calculate_itemset_support(c("bread", "milk"), transaction_matrix)
+metrics <- calculate_rule_metrics(c("plan"), c("discuss"), transaction_matrix)
+support <- calculate_itemset_support(c("plan", "discuss"), transaction_matrix)
 
 # Convert rules back to transactions for further analysis
 rule_transactions <- rules_to_transactions(rules$rules)
@@ -316,15 +316,15 @@ print_indices_summary(indices)
 ```r
 library(tnaExtras)
 
-# 1. Prepare your transaction data
+# 1. Prepare your learning activity data
 transactions <- list(
-  c("bread", "milk", "eggs"),
-  c("bread", "butter", "jam"),
-  c("milk", "eggs", "cheese"),
-  c("bread", "milk", "butter"),
-  c("eggs", "cheese", "yogurt"),
-  c("bread", "jam"),
-  c("milk", "cheese", "yogurt")
+  c("plan", "discuss", "execute", "reflect"),
+  c("plan", "research", "analyze", "present"),
+  c("discuss", "execute", "collaborate", "reflect"),
+  c("plan", "discuss", "execute", "evaluate"),
+  c("research", "analyze", "collaborate", "present"),
+  c("plan", "research", "execute"),
+  c("discuss", "collaborate", "analyze", "present")
 )
 
 # 2. Mine association rules using Apriori
@@ -349,7 +349,7 @@ high_quality_rules <- filter_association_rules(apriori_rules_result$rules,
                                               min_confidence = 0.8,
                                               min_lift = 1.5)
 
-bread_rules <- extract_rules_by_item(apriori_rules_result$rules, "bread")
+planning_rules <- extract_rules_by_item(apriori_rules_result$rules, "plan")
 
 # 6. Visualize results
 plot_rules_scatter(apriori_rules_result)
@@ -357,7 +357,7 @@ plot_rules_network(apriori_rules_result, top_n = 15)
 plot_rules_quality(apriori_rules_result)
 
 # 7. Export results
-export_association_rules(apriori_rules_result, "market_rules.csv")
+export_association_rules(apriori_rules_result, "learning_patterns.csv")
 ```
 
 ### Multi-Group Workflow

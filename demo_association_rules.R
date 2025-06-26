@@ -4,7 +4,7 @@
 # 
 # This demo shows how to use the association rules functionality in tnaExtras.
 # It covers both Apriori and FP-Growth algorithms with various data formats
-# and visualization options.
+# and visualization options using LEARNING ANALYTICS examples.
 
 # Load the library functions
 # Note: In practice, you would use library(tnaExtras)
@@ -13,39 +13,39 @@ source('R/association_utils.R')
 source('R/association_rules.R')
 source('R/association_viz.R')
 
-cat("Association Rules Demo for tnaExtras\n")
-cat("====================================\n\n")
+cat("Association Rules Demo for tnaExtras - Learning Analytics Focus\n")
+cat("===============================================================\n\n")
 
 # =============================================================================
-# EXAMPLE 1: Simple Transaction Data (Market Basket Analysis)
+# EXAMPLE 1: Collaborative Learning Activity Patterns
 # =============================================================================
 
-cat("Example 1: Market Basket Analysis\n")
-cat("---------------------------------\n")
+cat("Example 1: Collaborative Learning Activity Analysis\n")
+cat("---------------------------------------------------\n")
 
-# Simple transaction data
-market_transactions <- list(
-  c("bread", "milk", "eggs"),
-  c("bread", "butter", "jam"),
-  c("milk", "eggs", "cheese"),
-  c("bread", "milk", "butter"),
-  c("eggs", "cheese", "yogurt"),
-  c("bread", "jam"),
-  c("milk", "cheese", "yogurt"),
-  c("bread", "eggs", "butter"),
-  c("milk", "bread", "cheese"),
-  c("eggs", "yogurt")
+# Learning activity sequences from collaborative sessions
+learning_transactions <- list(
+  c("plan", "discuss", "execute", "reflect"),
+  c("plan", "research", "analyze", "present"),
+  c("discuss", "execute", "collaborate", "reflect"),
+  c("plan", "discuss", "execute", "evaluate"),
+  c("research", "analyze", "collaborate", "present"),
+  c("plan", "research", "execute"),
+  c("discuss", "collaborate", "analyze", "present"),
+  c("plan", "execute", "reflect", "evaluate"),
+  c("research", "discuss", "collaborate", "reflect"),
+  c("execute", "analyze", "present")
 )
 
-cat("Transaction data:\n")
-for (i in 1:length(market_transactions)) {
-  cat(sprintf("  T%d: %s\n", i, paste(market_transactions[[i]], collapse = ", ")))
+cat("Learning activity sequences:\n")
+for (i in 1:length(learning_transactions)) {
+  cat(sprintf("  Session %d: %s\n", i, paste(learning_transactions[[i]], collapse = " -> ")))
 }
 cat("\n")
 
 # Run Apriori algorithm
-cat("Running Apriori algorithm...\n")
-apriori_result <- apriori_rules(market_transactions, 
+cat("Running Apriori algorithm on learning activities...\n")
+apriori_result <- apriori_rules(learning_transactions, 
                                min_support = 0.2, 
                                min_confidence = 0.5,
                                min_lift = 1.0)
@@ -54,8 +54,8 @@ print(apriori_result)
 cat("\n")
 
 # Run FP-Growth algorithm
-cat("Running FP-Growth algorithm...\n")
-fp_growth_result <- fp_growth_rules(market_transactions, 
+cat("Running FP-Growth algorithm on learning activities...\n")
+fp_growth_result <- fp_growth_rules(learning_transactions, 
                                    min_support = 0.2, 
                                    min_confidence = 0.5,
                                    min_lift = 1.0)
@@ -71,134 +71,123 @@ algorithm_comparison <- compare_rule_algorithms(
 cat("\n")
 
 # =============================================================================
-# EXAMPLE 2: Educational Sequential Patterns
+# EXAMPLE 2: Problem-Based Learning Sequences
 # =============================================================================
 
-cat("Example 2: Educational Sequential Patterns\n")
+cat("Example 2: Problem-Based Learning Patterns\n")
 cat("------------------------------------------\n")
 
-# Educational activity sequences
-learning_sequences <- list(
-  c("read", "discuss", "practice", "test"),
-  c("read", "practice", "review"),
-  c("discuss", "practice", "collaborate", "test"),
-  c("read", "discuss", "practice"),
-  c("practice", "review", "test"),
-  c("read", "collaborate", "practice"),
-  c("discuss", "practice", "test"),
-  c("read", "practice", "review", "test"),
-  c("collaborate", "discuss", "practice"),
-  c("read", "discuss", "review")
+# Problem-based learning activity sequences
+pbl_sequences <- list(
+  c("identify", "research", "hypothesize", "test", "conclude"),
+  c("identify", "brainstorm", "plan", "implement"),
+  c("research", "analyze", "synthesize", "evaluate", "conclude"),
+  c("identify", "research", "plan", "test"),
+  c("brainstorm", "hypothesize", "implement", "evaluate"),
+  c("identify", "analyze", "plan", "implement"),
+  c("research", "synthesize", "test", "conclude"),
+  c("identify", "brainstorm", "hypothesize", "evaluate", "conclude"),
+  c("analyze", "plan", "implement", "test"),
+  c("identify", "research", "synthesize", "evaluate")
 )
 
-cat("Learning sequence data:\n")
-for (i in 1:length(learning_sequences)) {
-  cat(sprintf("  Student %d: %s\n", i, paste(learning_sequences[[i]], collapse = " -> ")))
+cat("Problem-based learning sequences:\n")
+for (i in 1:length(pbl_sequences)) {
+  cat(sprintf("  Team %d: %s\n", i, paste(pbl_sequences[[i]], collapse = " -> ")))
 }
 cat("\n")
 
 # Run association rule mining
-learning_rules <- apriori_rules(learning_sequences, 
-                               min_support = 0.25, 
-                               min_confidence = 0.6)
+pbl_rules <- apriori_rules(pbl_sequences, 
+                          min_support = 0.25, 
+                          min_confidence = 0.6)
 
-print(learning_rules)
-summary(learning_rules)
+print(pbl_rules)
+summary(pbl_rules)
 cat("\n")
 
 # =============================================================================
-# EXAMPLE 3: Data Frame Format
+# EXAMPLE 3: Data Frame Format - Student Learning Actions
 # =============================================================================
 
-cat("Example 3: Data Frame Transaction Format\n")
-cat("---------------------------------------\n")
+cat("Example 3: Student Learning Actions (Data Frame Format)\n")
+cat("------------------------------------------------------\n")
 
 # Create transaction data in data frame format
-df_transactions <- data.frame(
-  transaction_id = c(1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5),
-  item = c("A", "B", "C", "A", "D", "B", "C", "E", "F", "A", "B", "C", "D", "E")
+student_actions <- data.frame(
+  student_id = c(1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5),
+  action = c("observe", "question", "experiment", "observe", "reflect", 
+            "question", "experiment", "analyze", "conclude", "observe", "question", 
+            "experiment", "reflect", "analyze")
 )
 
-cat("Data frame format:\n")
-print(df_transactions)
+cat("Student learning actions data frame:\n")
+print(student_actions)
 cat("\n")
 
 # Prepare and run analysis
-prepared_data <- prepare_transactions(df_transactions, 
-                                     transaction_col = "transaction_id", 
-                                     item_cols = "item")
+prepared_data <- prepare_transactions(student_actions, 
+                                     transaction_col = "student_id", 
+                                     item_cols = "action")
 
-cat("Prepared transaction summary:\n")
-cat("  Number of transactions:", prepared_data$n_transactions, "\n")
-cat("  Number of unique items:", prepared_data$n_items, "\n")
-cat("  Average transaction length:", round(prepared_data$avg_transaction_length, 2), "\n\n")
+cat("Prepared learning action summary:\n")
+cat("  Number of students:", prepared_data$n_transactions, "\n")
+cat("  Number of unique actions:", prepared_data$n_items, "\n")
+cat("  Average actions per student:", round(prepared_data$avg_transaction_length, 2), "\n\n")
 
-df_rules <- fp_growth_rules(df_transactions, min_support = 0.3)
-print(df_rules)
+student_rules <- fp_growth_rules(student_actions, min_support = 0.3)
+print(student_rules)
 cat("\n")
 
 # =============================================================================
-# EXAMPLE 4: Rule Analysis and Filtering
+# EXAMPLE 4: Rule Analysis and Filtering - Focus on Critical Actions
 # =============================================================================
 
-cat("Example 4: Rule Analysis and Filtering\n")
-cat("-------------------------------------\n")
+cat("Example 4: Learning Rule Analysis and Filtering\n")
+cat("----------------------------------------------\n")
 
-# Use the learning rules from Example 2
-if (nrow(learning_rules$rules) > 0) {
+# Use the PBL rules from Example 2
+if (nrow(pbl_rules$rules) > 0) {
   
-  # Show different rule metrics
-  cat("Top rules by different metrics:\n")
+  # Filter rules with high confidence (strong learning patterns)
+  cat("High-confidence learning patterns (>= 80%):\n")
+  high_confidence_rules <- filter_association_rules(pbl_rules$rules, min_confidence = 0.8)
   
-  # Top by support
-  cat("\nTop 3 rules by Support:\n")
-  top_support <- head(rank_association_rules(learning_rules$rules, by = "support"), 3)
-  for (i in 1:nrow(top_support)) {
-    cat(sprintf("  %s => %s (Support: %.3f)\n", 
-               top_support$antecedent[i], top_support$consequent[i], top_support$support[i]))
-  }
-  
-  # Top by confidence
-  cat("\nTop 3 rules by Confidence:\n")
-  top_confidence <- head(rank_association_rules(learning_rules$rules, by = "confidence"), 3)
-  for (i in 1:nrow(top_confidence)) {
-    cat(sprintf("  %s => %s (Confidence: %.3f)\n", 
-               top_confidence$antecedent[i], top_confidence$consequent[i], top_confidence$confidence[i]))
-  }
-  
-  # Top by lift
-  cat("\nTop 3 rules by Lift:\n")
-  top_lift <- head(rank_association_rules(learning_rules$rules, by = "lift"), 3)
-  for (i in 1:nrow(top_lift)) {
-    cat(sprintf("  %s => %s (Lift: %.3f)\n", 
-               top_lift$antecedent[i], top_lift$consequent[i], top_lift$lift[i]))
-  }
-  
-  # Filter rules
-  cat("\nFiltering rules with high confidence (>0.8):\n")
-  high_conf_rules <- filter_association_rules(learning_rules$rules, 
-                                             min_confidence = 0.8)
-  if (nrow(high_conf_rules) > 0) {
-    for (i in 1:nrow(high_conf_rules)) {
-      cat(sprintf("  %s => %s (Conf: %.3f, Lift: %.3f)\n", 
-                 high_conf_rules$antecedent[i], high_conf_rules$consequent[i], 
-                 high_conf_rules$confidence[i], high_conf_rules$lift[i]))
+  if (nrow(high_confidence_rules) > 0) {
+    for (i in 1:nrow(high_confidence_rules)) {
+      cat(sprintf("  %s => %s (Confidence: %.3f, Lift: %.3f)\n", 
+                 high_confidence_rules$antecedent[i], high_confidence_rules$consequent[i], 
+                 high_confidence_rules$confidence[i], high_confidence_rules$lift[i]))
     }
   } else {
-    cat("  No rules found with confidence > 0.8\n")
+    cat("  No high-confidence rules found\n")
   }
+  cat("\n")
   
-  # Extract rules containing specific items
-  cat("\nRules containing 'practice':\n")
-  practice_rules <- extract_rules_by_item(learning_rules$rules, "practice")
-  if (nrow(practice_rules) > 0) {
-    for (i in 1:nrow(practice_rules)) {
+  # Rank rules by lift (most interesting patterns)
+  cat("Most interesting learning patterns (ranked by lift):\n")
+  ranked_rules <- rank_association_rules(pbl_rules$rules, by = "lift")
+  top_rules <- head(ranked_rules, 5)
+  
+  for (i in 1:nrow(top_rules)) {
+    cat(sprintf("  %d. %s => %s (Lift: %.3f)\n", i,
+               top_rules$antecedent[i], top_rules$consequent[i], 
+               top_rules$lift[i]))
+  }
+  cat("\n")
+  
+  # Extract rules involving critical thinking actions
+  cat("Rules involving 'analyze' action:\n")
+  analyze_rules <- extract_rules_by_item(pbl_rules$rules, "analyze")
+  
+  if (nrow(analyze_rules) > 0) {
+    for (i in 1:nrow(analyze_rules)) {
       cat(sprintf("  %s => %s (Lift: %.3f)\n", 
-                 practice_rules$antecedent[i], practice_rules$consequent[i], 
-                 practice_rules$lift[i]))
+                 analyze_rules$antecedent[i], analyze_rules$consequent[i], 
+                 analyze_rules$lift[i]))
     }
   } else {
-    cat("  No rules found containing 'practice'\n")
+    cat("  No rules found containing 'analyze'\n")
   }
   
 } else {
@@ -207,186 +196,187 @@ if (nrow(learning_rules$rules) > 0) {
 cat("\n")
 
 # =============================================================================
-# EXAMPLE 5: Binary Matrix Format
+# EXAMPLE 5: Binary Matrix Format - Learning Competencies
 # =============================================================================
 
-cat("Example 5: Binary Matrix Format\n")
-cat("------------------------------\n")
+cat("Example 5: Learning Competencies Matrix\n")
+cat("--------------------------------------\n")
 
-# Create binary transaction matrix
-items <- c("item_A", "item_B", "item_C", "item_D", "item_E")
-binary_matrix <- matrix(c(
-  1, 1, 0, 1, 0,
-  1, 0, 1, 0, 1,
-  0, 1, 1, 1, 0,
-  1, 1, 1, 0, 0,
-  0, 0, 1, 1, 1,
-  1, 0, 0, 1, 1
+# Create binary transaction matrix for learning competencies
+competencies <- c("critical_thinking", "collaboration", "communication", "creativity", "problem_solving")
+competency_matrix <- matrix(c(
+  1, 1, 0, 1, 0,  # Student 1: critical_thinking, collaboration, creativity
+  1, 0, 1, 0, 1,  # Student 2: critical_thinking, communication, problem_solving
+  0, 1, 1, 1, 0,  # Student 3: collaboration, communication, creativity
+  1, 1, 1, 0, 0,  # Student 4: critical_thinking, collaboration, communication
+  0, 0, 1, 1, 1,  # Student 5: communication, creativity, problem_solving
+  1, 0, 0, 1, 1   # Student 6: critical_thinking, creativity, problem_solving
 ), nrow = 6, byrow = TRUE)
 
-colnames(binary_matrix) <- items
-rownames(binary_matrix) <- paste0("Transaction_", 1:6)
+colnames(competency_matrix) <- competencies
+rownames(competency_matrix) <- paste0("Student_", 1:6)
 
-cat("Binary transaction matrix:\n")
-print(binary_matrix)
+cat("Learning competencies matrix:\n")
+print(competency_matrix)
 cat("\n")
 
-# Run association rule mining
-binary_rules <- apriori_rules(binary_matrix, min_support = 0.3, min_confidence = 0.6)
-print(binary_rules)
+# Run association rule mining on competencies
+competency_rules <- apriori_rules(competency_matrix, min_support = 0.3, min_confidence = 0.6)
+print(competency_rules)
 cat("\n")
 
 # =============================================================================
-# EXAMPLE 6: Visualization Examples
+# EXAMPLE 6: Visualization Examples - Learning Analytics Plots
 # =============================================================================
 
-cat("Example 6: Visualization Examples\n")
-cat("--------------------------------\n")
+cat("Example 6: Learning Analytics Visualization Examples\n")
+cat("---------------------------------------------------\n")
 
 # Note: In a real environment, these would create actual plots
 # For demo purposes, we'll just show the function calls
 
-if (nrow(learning_rules$rules) > 0) {
+if (nrow(pbl_rules$rules) > 0) {
   
-  cat("Available visualization options:\n\n")
+  cat("Creating learning pattern visualizations:\n")
+  cat("1. Scatter plot: plot_rules_scatter(pbl_rules)\n")
+  cat("   - Shows support vs confidence for learning patterns\n")
+  cat("   - Color-coded by lift values\n\n")
   
-  cat("1. Scatter plot (Support vs Confidence, colored by Lift):\n")
-  cat("   plot_rules_scatter(learning_rules)\n\n")
+  cat("2. Network diagram: plot_rules_network(pbl_rules)\n")
+  cat("   - Shows relationships between learning actions\n")
+  cat("   - Node size represents action frequency\n\n")
   
-  cat("2. Network diagram:\n")
-  cat("   plot_rules_network(learning_rules, top_n = 10)\n\n")
+  cat("3. Quality metrics: plot_rules_quality(pbl_rules)\n")
+  cat("   - Distribution of support, confidence, and lift\n")
+  cat("   - Helps identify rule quality patterns\n\n")
   
-  cat("3. Itemset frequency chart:\n")
-  cat("   plot_itemset_frequency(learning_rules)\n\n")
+  cat("4. Action frequency: plot_itemset_frequency(pbl_rules)\n")
+  cat("   - Bar chart of most frequent learning actions\n")
+  cat("   - Identifies core learning behaviors\n\n")
   
-  cat("4. Quality metrics distribution:\n")
-  cat("   plot_rules_quality(learning_rules)\n\n")
+  cat("5. Matrix heatmap: plot_rules_matrix(pbl_rules)\n")
+  cat("   - Heatmap showing action co-occurrence patterns\n")
+  cat("   - Useful for curriculum design insights\n\n")
   
-  cat("5. Rules matrix:\n")
-  cat("   plot_rules_matrix(learning_rules)\n\n")
-  
-  cat("6. Generic plot method:\n")
-  cat("   plot(learning_rules, type = 'scatter')\n")
-  cat("   plot(learning_rules, type = 'network')\n\n")
-  
-  # Demonstrate one actual plot call (commented out for demo)
-  # plot_rules_scatter(learning_rules, main = "Learning Rules Analysis")
+  cat("6. Generic plot method: plot(pbl_rules, type = 'scatter')\n")
+  cat("   - Convenient interface for all plot types\n\n")
   
 } else {
-  cat("No rules available for visualization in this demo run.\n")
+  cat("No rules available for visualization.\n")
 }
 
 # =============================================================================
-# EXAMPLE 7: Rule Export and Utility Functions
+# EXAMPLE 7: Utility Functions - Learning Analytics Applications
 # =============================================================================
 
-cat("Example 7: Rule Export and Utilities\n")
-cat("-----------------------------------\n")
+cat("Example 7: Learning Analytics Utility Functions\n")
+cat("----------------------------------------------\n")
 
-if (nrow(learning_rules$rules) > 0) {
+if (nrow(pbl_rules$rules) > 0) {
   
-  # Calculate rule overlap
-  cat("Calculating rule overlap (Jaccard similarity):\n")
-  overlap_matrix <- calculate_rule_overlap(learning_rules$rules, method = "jaccard")
+  # Calculate rule overlap for learning pattern similarity
+  cat("Calculating learning pattern overlap (Jaccard similarity):\n")
+  overlap_matrix <- calculate_rule_overlap(pbl_rules$rules, method = "jaccard")
   cat("Overlap matrix dimensions:", nrow(overlap_matrix), "x", ncol(overlap_matrix), "\n")
   if (nrow(overlap_matrix) > 0) {
-    cat("Average overlap:", round(mean(overlap_matrix[upper.tri(overlap_matrix)]), 3), "\n")
+    cat("Average pattern similarity:", round(mean(overlap_matrix[upper.tri(overlap_matrix)]), 3), "\n")
   }
   
-  # Find redundant rules
-  cat("\nChecking for redundant rules:\n")
-  redundant <- find_redundant_rules(learning_rules$rules)
-  cat("Number of redundant rules found:", sum(redundant), "\n")
+  # Find redundant learning patterns
+  cat("\nChecking for redundant learning patterns:\n")
+  redundant <- find_redundant_rules(pbl_rules$rules)
+  cat("Number of redundant patterns found:", sum(redundant), "\n")
   
-  # Convert rules back to transactions
-  cat("\nConverting rules to transaction format:\n")
-  rule_transactions <- rules_to_transactions(learning_rules$rules)
-  cat("Number of rule-transactions:", length(rule_transactions), "\n")
-  if (length(rule_transactions) > 0) {
-    cat("First rule-transaction items:", paste(rule_transactions[[1]], collapse = ", "), "\n")
+  # Convert rules back to learning sequences
+  cat("\nConverting rules to learning sequence format:\n")
+  rule_sequences <- rules_to_transactions(pbl_rules$rules)
+  cat("Number of rule-based sequences:", length(rule_sequences), "\n")
+  if (length(rule_sequences) > 0) {
+    cat("First rule-sequence actions:", paste(rule_sequences[[1]], collapse = ", "), "\n")
   }
   
-  # Export examples (file paths shown, not actually written in demo)
-  cat("\nExport options:\n")
-  cat("  CSV: export_association_rules(learning_rules, 'rules.csv')\n")
-  cat("  JSON: export_association_rules(learning_rules, 'rules.json', format = 'json')\n")
-  cat("  Text: export_association_rules(learning_rules, 'rules.txt', format = 'txt')\n")
+  # Export examples for learning analytics reports
+  cat("\nExport options for learning analytics:\n")
+  cat("  CSV: export_association_rules(pbl_rules, 'learning_patterns.csv')\n")
+  cat("  JSON: export_association_rules(pbl_rules, 'learning_patterns.json', format = 'json')\n")
+  cat("  Text: export_association_rules(pbl_rules, 'learning_patterns.txt', format = 'txt')\n")
   
 } else {
-  cat("No rules available for utility demonstrations.\n")
+  cat("No learning patterns available for utility demonstrations.\n")
 }
 cat("\n")
 
 # =============================================================================
-# EXAMPLE 8: Parameter Sensitivity Analysis
+# EXAMPLE 8: Parameter Sensitivity Analysis - Learning Context
 # =============================================================================
 
-cat("Example 8: Parameter Sensitivity Analysis\n")
-cat("----------------------------------------\n")
+cat("Example 8: Learning Pattern Parameter Sensitivity\n")
+cat("------------------------------------------------\n")
 
-# Test different parameter combinations on market data
-cat("Testing different parameter combinations on market basket data:\n\n")
+# Test different parameter combinations on learning activity data
+cat("Testing different parameter combinations on collaborative learning data:\n\n")
 
 parameters <- list(
-  list(min_support = 0.1, min_confidence = 0.5, label = "Relaxed"),
-  list(min_support = 0.3, min_confidence = 0.7, label = "Moderate"),
-  list(min_support = 0.4, min_confidence = 0.8, label = "Strict")
+  list(min_support = 0.1, min_confidence = 0.5, label = "Exploratory"),
+  list(min_support = 0.3, min_confidence = 0.7, label = "Balanced"),
+  list(min_support = 0.4, min_confidence = 0.8, label = "Conservative")
 )
 
 for (i in 1:length(parameters)) {
   params <- parameters[[i]]
-  cat(sprintf("%s parameters (Support: %.1f, Confidence: %.1f):\n", 
+  cat(sprintf("%s analysis (Support: %.1f, Confidence: %.1f):\n", 
              params$label, params$min_support, params$min_confidence))
   
-  test_rules <- apriori_rules(market_transactions, 
+  test_rules <- apriori_rules(learning_transactions, 
                              min_support = params$min_support,
                              min_confidence = params$min_confidence,
                              verbose = FALSE)
   
-  cat(sprintf("  Rules found: %d\n", nrow(test_rules$rules)))
+  cat(sprintf("  Learning patterns found: %d\n", nrow(test_rules$rules)))
   
   if (nrow(test_rules$rules) > 0) {
     avg_lift <- mean(test_rules$rules$lift)
     max_lift <- max(test_rules$rules$lift)
-    cat(sprintf("  Average lift: %.3f\n", avg_lift))
-    cat(sprintf("  Maximum lift: %.3f\n", max_lift))
+    cat(sprintf("  Average pattern strength (lift): %.3f\n", avg_lift))
+    cat(sprintf("  Strongest pattern (lift): %.3f\n", max_lift))
     
-    # Show top rule
+    # Show top learning pattern
     top_rule <- test_rules$rules[which.max(test_rules$rules$lift), ]
-    cat(sprintf("  Top rule: %s => %s (Lift: %.3f)\n", 
+    cat(sprintf("  Top learning pattern: %s => %s (Lift: %.3f)\n", 
                top_rule$antecedent, top_rule$consequent, top_rule$lift))
   }
   cat("\n")
 }
 
 # =============================================================================
-# SUMMARY
+# SUMMARY - LEARNING ANALYTICS FOCUS
 # =============================================================================
 
-cat("Demo Summary\n")
-cat("============\n")
-cat("This demo has shown:\n")
-cat("1. Basic association rule mining with Apriori and FP-Growth algorithms\n")
-cat("2. Different input data formats (list, data.frame, matrix)\n")
-cat("3. Rule analysis and filtering techniques\n")
-cat("4. Visualization options (scatter, network, frequency, quality, matrix)\n")
-cat("5. Utility functions for rule manipulation and export\n")
-cat("6. Parameter sensitivity analysis\n\n")
+cat("Learning Analytics Demo Summary\n")
+cat("==============================\n")
+cat("This demo has demonstrated:\n")
+cat("1. Collaborative learning activity pattern mining\n")
+cat("2. Problem-based learning sequence analysis\n")
+cat("3. Student action tracking and rule discovery\n")
+cat("4. Learning competency association analysis\n")
+cat("5. Educational visualization for pattern interpretation\n")
+cat("6. Learning analytics utility functions\n")
+cat("7. Parameter tuning for different educational contexts\n\n")
 
-cat("Key functions demonstrated:\n")
-cat("- apriori_rules(): Apriori algorithm implementation\n")
-cat("- fp_growth_rules(): FP-Growth algorithm implementation\n")
-cat("- compare_rule_algorithms(): Algorithm comparison\n")
-cat("- prepare_transactions(): Data preparation\n")
-cat("- filter_association_rules(): Rule filtering\n")
-cat("- rank_association_rules(): Rule ranking\n")
-cat("- extract_rules_by_item(): Item-specific rule extraction\n")
-cat("- plot_rules_scatter(): Scatter plot visualization\n")
-cat("- plot_rules_network(): Network visualization\n")
-cat("- export_association_rules(): Rule export functionality\n\n")
+cat("Key educational applications:\n")
+cat("- Curriculum design optimization\n")
+cat("- Learning pathway recommendation\n")
+cat("- Competency development tracking\n")
+cat("- Collaborative learning enhancement\n")
+cat("- Assessment strategy improvement\n")
+cat("- Personalized learning support\n\n")
 
-cat("All functions are designed to work with base R only (no external dependencies).\n")
-cat("For more advanced visualizations, consider using the plotting functions\n")
-cat("with additional R graphics packages.\n\n")
+cat("Core learning analytics functions:\n")
+cat("- apriori_rules(): Discover learning patterns with Apriori\n")
+cat("- fp_growth_rules(): Efficient pattern mining with FP-Growth\n")
+cat("- compare_rule_algorithms(): Compare different mining approaches\n")
+cat("- filter_association_rules(): Focus on high-quality learning patterns\n")
+cat("- plot_rules_*(): Visualize educational patterns and relationships\n")
+cat("- export_association_rules(): Generate reports for stakeholders\n\n")
 
-cat("Demo completed successfully!\n") 
+cat("Learning Analytics Association Rules Demo completed successfully!\n") 

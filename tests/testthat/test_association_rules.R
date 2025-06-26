@@ -2,14 +2,14 @@
 # TESTS FOR ASSOCIATION RULES FUNCTIONALITY
 # =============================================================================
 
-# Test data
+# Test data - learning activities
 test_transactions_list <- list(
-  c("A", "B", "C"),
-  c("A", "D"),
-  c("B", "C", "E"),
-  c("A", "B", "D"),
-  c("A", "C", "E"),
-  c("B", "D", "E")
+  c("plan", "discuss", "execute"),
+  c("plan", "reflect"),
+  c("discuss", "execute", "analyze"),
+  c("plan", "discuss", "reflect"),
+  c("plan", "execute", "analyze"),
+  c("discuss", "reflect", "analyze")
 )
 
 test_transactions_df <- data.frame(

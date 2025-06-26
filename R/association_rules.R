@@ -16,13 +16,13 @@
 #' @return Object of class "association_rules" containing discovered rules
 #' @export
 #' @examples
-#' # Example with simple transaction data
+#' # Example with learning activity data
 #' transactions <- list(
-#'   c("bread", "milk", "eggs"),
-#'   c("bread", "butter"),
-#'   c("milk", "eggs", "cheese"),
-#'   c("bread", "milk", "butter"),
-#'   c("eggs", "cheese")
+#'   c("plan", "discuss", "execute", "reflect"),
+#'   c("plan", "research", "analyze"),
+#'   c("discuss", "execute", "collaborate", "reflect"),
+#'   c("plan", "discuss", "execute", "evaluate"),
+#'   c("research", "analyze", "collaborate")
 #' )
 #' 
 #' rules <- apriori_rules(transactions, min_support = 0.2, min_confidence = 0.6)
@@ -109,13 +109,13 @@ apriori_rules <- function(transactions, min_support = 0.1, min_confidence = 0.8,
 #' @return Object of class "association_rules" containing discovered rules
 #' @export
 #' @examples
-#' # Example with simple transaction data
+#' # Example with learning activity data
 #' transactions <- list(
-#'   c("bread", "milk", "eggs"),
-#'   c("bread", "butter"),
-#'   c("milk", "eggs", "cheese"),
-#'   c("bread", "milk", "butter"),
-#'   c("eggs", "cheese")
+#'   c("plan", "discuss", "execute", "reflect"),
+#'   c("plan", "research", "analyze"),
+#'   c("discuss", "execute", "collaborate", "reflect"),
+#'   c("plan", "discuss", "execute", "evaluate"),
+#'   c("research", "analyze", "collaborate")
 #' )
 #' 
 #' rules <- fp_growth_rules(transactions, min_support = 0.2, min_confidence = 0.6)
