@@ -6,6 +6,8 @@ A comprehensive R package for analyzing temporal patterns in sequential data. Th
 
 **Enhanced in v0.2.0: Multi-Group Support** - Now supports analysis across multiple groups (3+) in addition to the original two-group comparisons.
 
+**Enhanced in v0.3.0: Actual Group Names** - All analysis functions now display actual group names in results, tables, and graphs instead of generic "A", "B", "C" labels.
+
 ## Features
 
 - **Association Rule Learning**: Complete implementation of Apriori and FP-Growth algorithms for mining frequent patterns and association rules

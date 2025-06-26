@@ -177,24 +177,31 @@ compute_support_measures_multi <- function(patterns, group_sequences, group_name
 }
 
 # Keep the original function for backward compatibility
-compute_support_measures <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_support_measures <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   group_sequences <- list(group_A_seqs, group_B_seqs)
-  group_names <- c("A", "B")
   
   multi_result <- compute_support_measures_multi(patterns, group_sequences, group_names)
   
-  # Convert to original format
+  # Create dynamic column names using actual group names
+  support_col_A <- paste0("support_", group_names[1])
+  support_col_B <- paste0("support_", group_names[2])
+  
+  # Convert to original format with actual group names
   results <- data.frame(
     pattern = multi_result$pattern,
-    support_A = multi_result$support_A,
-    support_B = multi_result$support_B,
-    support_diff = multi_result$support_A - multi_result$support_B,
-    support_ratio = (multi_result$support_A + 0.001) / (multi_result$support_B + 0.001),
-    relative_support = ifelse((multi_result$support_A + multi_result$support_B) == 0, 0, 
-                             (multi_result$support_A - multi_result$support_B) / 
-                             (multi_result$support_A + multi_result$support_B)),
     stringsAsFactors = FALSE
   )
+  
+  # Add support columns with actual group names
+  results[[support_col_A]] <- multi_result[[support_col_A]]
+  results[[support_col_B]] <- multi_result[[support_col_B]]
+  
+  # Calculate differences and ratios
+  results$support_diff <- multi_result[[support_col_A]] - multi_result[[support_col_B]]
+  results$support_ratio <- (multi_result[[support_col_A]] + 0.001) / (multi_result[[support_col_B]] + 0.001)
+  results$relative_support <- ifelse((multi_result[[support_col_A]] + multi_result[[support_col_B]]) == 0, 0, 
+                           (multi_result[[support_col_A]] - multi_result[[support_col_B]]) / 
+                           (multi_result[[support_col_A]] + multi_result[[support_col_B]]))
   
   # Sort by absolute support difference
   results <- results[order(abs(results$support_diff), decreasing = TRUE), ]
@@ -215,8 +222,9 @@ compute_support_measures <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param patterns Character vector of patterns to analyze
 #' @param group_A_seqs Character vector of sequences for group A
 #' @param group_B_seqs Character vector of sequences for group B
+#' @param group_names Character vector of actual group names (default: c("A", "B"))
 #' @return Data frame with lift measures
-compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
@@ -228,18 +236,28 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     stop("group sequences cannot be empty")
   }
   
+  # Create dynamic column names using actual group names
+  observed_col_A <- paste0("observed_", group_names[1])
+  observed_col_B <- paste0("observed_", group_names[2])
+  expected_col_A <- paste0("expected_", group_names[1])
+  expected_col_B <- paste0("expected_", group_names[2])
+  lift_col_A <- paste0("lift_", group_names[1])
+  lift_col_B <- paste0("lift_", group_names[2])
+  
   results <- data.frame(
     pattern = patterns,
-    observed_A = numeric(length(patterns)),
-    observed_B = numeric(length(patterns)),
-    expected_A = numeric(length(patterns)),
-    expected_B = numeric(length(patterns)),
-    lift_A = numeric(length(patterns)),
-    lift_B = numeric(length(patterns)),
-    lift_ratio = numeric(length(patterns)),
-    lift_difference = numeric(length(patterns)),
     stringsAsFactors = FALSE
   )
+  
+  # Add columns with actual group names
+  results[[observed_col_A]] <- numeric(length(patterns))
+  results[[observed_col_B]] <- numeric(length(patterns))
+  results[[expected_col_A]] <- numeric(length(patterns))
+  results[[expected_col_B]] <- numeric(length(patterns))
+  results[[lift_col_A]] <- numeric(length(patterns))
+  results[[lift_col_B]] <- numeric(length(patterns))
+  results$lift_ratio <- numeric(length(patterns))
+  results$lift_difference <- numeric(length(patterns))
   
   n_A <- length(group_A_seqs)
   n_B <- length(group_B_seqs)
@@ -255,7 +273,6 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     
     # Skip patterns with no occurrences
     if (count_total == 0) {
-      results[i, 2:9] <- 0
       next
     }
     
@@ -275,12 +292,12 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     lift_A <- prop_A / (expected_prop_A + 1e-10)
     lift_B <- prop_B / (expected_prop_B + 1e-10)
     
-    results$observed_A[i] <- count_A
-    results$observed_B[i] <- count_B
-    results$expected_A[i] <- expected_A
-    results$expected_B[i] <- expected_B
-    results$lift_A[i] <- lift_A
-    results$lift_B[i] <- lift_B
+    results[[observed_col_A]][i] <- count_A
+    results[[observed_col_B]][i] <- count_B
+    results[[expected_col_A]][i] <- expected_A
+    results[[expected_col_B]][i] <- expected_B
+    results[[lift_col_A]][i] <- lift_A
+    results[[lift_col_B]][i] <- lift_B
     
     # Lift ratio (capped to avoid extreme values)
     lift_ratio <- pmin(pmax(lift_A / (lift_B + 1e-10), 0.01), 100)
@@ -308,8 +325,9 @@ compute_lift_measures <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param patterns Character vector of patterns to analyze
 #' @param group_A_seqs Character vector of sequences for group A
 #' @param group_B_seqs Character vector of sequences for group B
+#' @param group_names Character vector of actual group names (default: c("A", "B"))
 #' @return Data frame with confidence measures
-compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
@@ -321,15 +339,21 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     stop("group sequences cannot be empty")
   }
   
+  # Create dynamic column names using actual group names
+  confidence_col_A <- paste0("confidence_", group_names[1])
+  confidence_col_B <- paste0("confidence_", group_names[2])
+  
   results <- data.frame(
     pattern = patterns,
-    confidence_A = numeric(length(patterns)),
-    confidence_B = numeric(length(patterns)),
-    confidence_diff = numeric(length(patterns)),
-    confidence_ratio = numeric(length(patterns)),
-    balanced_confidence = numeric(length(patterns)),
     stringsAsFactors = FALSE
   )
+  
+  # Add columns with actual group names
+  results[[confidence_col_A]] <- numeric(length(patterns))
+  results[[confidence_col_B]] <- numeric(length(patterns))
+  results$confidence_diff <- numeric(length(patterns))
+  results$confidence_ratio <- numeric(length(patterns))
+  results$balanced_confidence <- numeric(length(patterns))
   
   n_A <- length(group_A_seqs)
   n_B <- length(group_B_seqs)
@@ -344,7 +368,6 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     
     # Skip patterns with no occurrences
     if (count_total == 0) {
-      results[i, 2:6] <- 0
       next
     }
     
@@ -352,8 +375,8 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
     conf_A <- count_A / count_total
     conf_B <- count_B / count_total
     
-    results$confidence_A[i] <- conf_A
-    results$confidence_B[i] <- conf_B
+    results[[confidence_col_A]][i] <- conf_A
+    results[[confidence_col_B]][i] <- conf_B
     results$confidence_diff[i] <- conf_A - conf_B
     
     # Confidence ratio with small constant
@@ -384,8 +407,9 @@ compute_confidence_measures <- function(patterns, group_A_seqs, group_B_seqs) {
 #' @param patterns Character vector of patterns to analyze
 #' @param group_A_seqs Character vector of sequences for group A
 #' @param group_B_seqs Character vector of sequences for group B
+#' @param group_names Character vector of actual group names (default: c("A", "B"))
 #' @return Data frame with effect size measures
-compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
+compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs, group_names = c("A", "B")) {
   # Input validation
   if (!is.character(patterns) || length(patterns) == 0) {
     stop("patterns must be a non-empty character vector")
@@ -421,52 +445,70 @@ compute_effect_sizes <- function(patterns, group_A_seqs, group_B_seqs) {
     p_A <- count_A / n_A
     p_B <- count_B / n_B
     
-    # Cohen's h (effect size for proportions)
-    h <- 2 * (asin(sqrt(p_A)) - asin(sqrt(p_B)))
-    results$cohens_h[i] <- h
+    # Cohen's h (effect size for difference in proportions)
+    if (p_A == 0 && p_B == 0) {
+      cohens_h <- 0
+    } else {
+      # Use arcsine transformation
+      h_A <- 2 * asin(sqrt(pmax(0, pmin(1, p_A))))
+      h_B <- 2 * asin(sqrt(pmax(0, pmin(1, p_B))))
+      cohens_h <- h_A - h_B
+    }
     
     # Cohen's d (standardized mean difference)
+    # For binary data, use pooled standard deviation
     pooled_p <- (count_A + count_B) / (n_A + n_B)
     pooled_var <- pooled_p * (1 - pooled_p)
-    d <- ifelse(pooled_var == 0, 0, (p_A - p_B) / sqrt(pooled_var))
-    results$cohens_d[i] <- d
+    if (pooled_var > 0) {
+      cohens_d <- (p_A - p_B) / sqrt(pooled_var)
+    } else {
+      cohens_d <- 0
+    }
     
-    # Contingency table for other measures
-    present_A <- count_A
-    absent_A <- n_A - count_A
-    present_B <- count_B
-    absent_B <- n_B - count_B
+    # Create contingency table for chi-square based measures
+    # Present/Absent in each group
+    cont_table <- matrix(c(
+      count_A, n_A - count_A,      # Group A: present, absent
+      count_B, n_B - count_B       # Group B: present, absent
+    ), nrow = 2, byrow = TRUE)
     
-    # Chi-square components
-    n_total <- n_A + n_B
-    
-    chi_sq <- tryCatch({
-      if (n_total == 0) {
-        0
+    # Cramer's V
+    total_n <- n_A + n_B
+    if (total_n > 0) {
+      chi_sq <- suppressWarnings(chisq.test(cont_table, correct = FALSE))
+      if (!is.na(chi_sq$statistic)) {
+        cramers_v <- sqrt(chi_sq$statistic / (total_n * (min(nrow(cont_table), ncol(cont_table)) - 1)))
       } else {
-        expected_11 <- (present_A + present_B) * (present_A + absent_A) / n_total
-        expected_12 <- (present_A + present_B) * (present_B + absent_B) / n_total
-        expected_21 <- (absent_A + absent_B) * (present_A + absent_A) / n_total
-        expected_22 <- (absent_A + absent_B) * (present_B + absent_B) / n_total
-        
-        # Avoid division by zero
-        if (any(c(expected_11, expected_12, expected_21, expected_22) < 1e-10)) {
-          0
-        } else {
-          ((present_A - expected_11)^2 / expected_11) +
-          ((present_B - expected_12)^2 / expected_12) +
-          ((absent_A - expected_21)^2 / expected_21) +
-          ((absent_B - expected_22)^2 / expected_22)
-        }
+        cramers_v <- 0
       }
-    }, error = function(e) 0)
+    } else {
+      cramers_v <- 0
+    }
     
-    # Cramer's V and Phi coefficient
-    results$cramers_v[i] <- sqrt(chi_sq / n_total)
-    results$phi_coefficient[i] <- sqrt(chi_sq / n_total)
+    # Phi coefficient (for 2x2 tables)
+    if (total_n > 0) {
+      a <- cont_table[1,1]  # Group A, present
+      b <- cont_table[1,2]  # Group A, absent
+      c <- cont_table[2,1]  # Group B, present
+      d <- cont_table[2,2]  # Group B, absent
+      
+      denom <- sqrt((a + b) * (c + d) * (a + c) * (b + d))
+      if (denom > 0) {
+        phi_coefficient <- (a * d - b * c) / denom
+      } else {
+        phi_coefficient <- 0
+      }
+    } else {
+      phi_coefficient <- 0
+    }
     
-    # Standardized difference (simple but robust)
+    # Standardized difference
     pooled_se <- sqrt(pooled_p * (1 - pooled_p) * (1/n_A + 1/n_B))
+    
+    results$cohens_h[i] <- cohens_h
+    results$cohens_d[i] <- cohens_d
+    results$cramers_v[i] <- cramers_v
+    results$phi_coefficient[i] <- phi_coefficient
     results$standardized_diff[i] <- ifelse(pooled_se == 0, 0, (p_A - p_B) / pooled_se)
   }
   
@@ -716,22 +758,22 @@ analyze_patterns <- function(data, group_col = "Group", min_length = 2, max_leng
   
   if ("support" %in% measures) {
     cat("Computing support measures...\n")
-    results$support <- compute_support_measures(frequent_patterns, group_A_sequences, group_B_sequences)
+    results$support <- compute_support_measures(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   if ("lift" %in% measures) {
     cat("Computing lift measures...\n")
-    results$lift <- compute_lift_measures(frequent_patterns, group_A_sequences, group_B_sequences)
+    results$lift <- compute_lift_measures(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   if ("confidence" %in% measures) {
     cat("Computing confidence measures...\n")
-    results$confidence <- compute_confidence_measures(frequent_patterns, group_A_sequences, group_B_sequences)
+    results$confidence <- compute_confidence_measures(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   if ("effect_size" %in% measures) {
     cat("Computing effect size measures...\n")
-    results$effect_size <- compute_effect_sizes(frequent_patterns, group_A_sequences, group_B_sequences)
+    results$effect_size <- compute_effect_sizes(frequent_patterns, group_A_sequences, group_B_sequences, group_names)
   }
   
   # Add metadata

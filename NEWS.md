@@ -41,6 +41,15 @@
 * **NEW**: `summary.association_rules()` - Statistical summaries
 * **NEW**: `head.association_rules()` - Display top rules
 
+## Major Enhancements
+
+### Actual Group Names in Analysis
+* **ENHANCED**: All analysis functions now display actual group names throughout results
+* **ENHANCED**: `analyze_patterns()` and `analyze_patterns_multi()` show actual group names in column headers (e.g., `support_Expert` instead of `support_A`)
+* **ENHANCED**: `compare_sequences()` and `compare_sequences_multi()` display actual group names in tables and visualizations
+* **ENHANCED**: `compute_sequence_indices()` preserves actual group names in summaries and outputs
+* **ENHANCED**: Heatmaps and visualizations now use actual group names on axes and legends
+
 ## Demo and Documentation
 * **NEW**: `demo_association_rules.R` - Comprehensive demo with 8 examples
 * **NEW**: Market basket analysis examples

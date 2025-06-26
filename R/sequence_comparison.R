@@ -509,7 +509,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     return(subsequences)
   }
   
-  analyze_discrimination <- function(seq_A, seq_B, n) {
+  analyze_discrimination <- function(seq_A, seq_B, n, group_names = c("A", "B")) {
     # Extract subsequences
     subseq_A <- extract_subsequences(seq_A, n)
     subseq_B <- extract_subsequences(seq_B, n)
@@ -523,31 +523,39 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     freq_B <- table(subseq_B)
     all_patterns <- unique(c(names(freq_A), names(freq_B)))
     
+    # Create dynamic column names using actual group names
+    freq_col_A <- paste0("freq_", group_names[1])
+    freq_col_B <- paste0("freq_", group_names[2])
+    prop_col_A <- paste0("prop_", group_names[1])
+    prop_col_B <- paste0("prop_", group_names[2])
+    
     # Create frequency table
     patterns <- data.frame(
       pattern = all_patterns,
-      freq_A = as.numeric(freq_A[all_patterns]),
-      freq_B = as.numeric(freq_B[all_patterns]),
       stringsAsFactors = FALSE
     )
+    
+    # Add frequency columns with actual group names
+    patterns[[freq_col_A]] <- as.numeric(freq_A[all_patterns])
+    patterns[[freq_col_B]] <- as.numeric(freq_B[all_patterns])
     patterns[is.na(patterns)] <- 0
     
     # Calculate metrics
-    total_A <- sum(patterns$freq_A)
-    total_B <- sum(patterns$freq_B)
+    total_A <- sum(patterns[[freq_col_A]])
+    total_B <- sum(patterns[[freq_col_B]])
     
     if (total_A > 0 && total_B > 0) {
-      patterns$prop_A <- patterns$freq_A / total_A
-      patterns$prop_B <- patterns$freq_B / total_B
-      patterns$prop_diff <- patterns$prop_A - patterns$prop_B
+      patterns[[prop_col_A]] <- patterns[[freq_col_A]] / total_A
+      patterns[[prop_col_B]] <- patterns[[freq_col_B]] / total_B
+      patterns$prop_diff <- patterns[[prop_col_A]] - patterns[[prop_col_B]]
       
       # Discrimination score (simple and robust)
-      patterns$discrimination <- abs(patterns$prop_diff) * sqrt(patterns$freq_A + patterns$freq_B)
+      patterns$discrimination <- abs(patterns$prop_diff) * sqrt(patterns[[freq_col_A]] + patterns[[freq_col_B]])
       
       # Sort by discrimination
       patterns <- patterns[order(patterns$discrimination, decreasing = TRUE), ]
     } else {
-      patterns$prop_A <- patterns$prop_B <- patterns$prop_diff <- patterns$discrimination <- 0
+      patterns[[prop_col_A]] <- patterns[[prop_col_B]] <- patterns$prop_diff <- patterns$discrimination <- 0
     }
     
     return(list(
@@ -559,7 +567,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     ))
   }
   
-  analyze_statistical <- function(seq_A, seq_B, n, correction_method, test_method, min_expected) {
+  analyze_statistical <- function(seq_A, seq_B, n, correction_method, test_method, min_expected, group_names = c("A", "B")) {
     # Extract subsequences
     subseq_A <- extract_subsequences(seq_A, n)
     subseq_B <- extract_subsequences(seq_B, n)
@@ -573,13 +581,19 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     freq_B <- table(subseq_B)
     all_patterns <- unique(c(names(freq_A), names(freq_B)))
     
+    # Create dynamic column names using actual group names
+    freq_col_A <- paste0("freq_", group_names[1])
+    freq_col_B <- paste0("freq_", group_names[2])
+    
     # Create results table
     results <- data.frame(
       pattern = all_patterns,
-      freq_A = as.numeric(freq_A[all_patterns]),
-      freq_B = as.numeric(freq_B[all_patterns]),
       stringsAsFactors = FALSE
     )
+    
+    # Add frequency columns with actual group names
+    results[[freq_col_A]] <- as.numeric(freq_A[all_patterns])
+    results[[freq_col_B]] <- as.numeric(freq_B[all_patterns])
     results[is.na(results)] <- 0
     
     # Perform statistical tests
@@ -589,9 +603,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     
     for (i in seq_len(nrow(results))) {
       # Create contingency table
-      cont_table <- matrix(c(results$freq_A[i], results$freq_B[i],
-                            sum(results$freq_A) - results$freq_A[i],
-                            sum(results$freq_B) - results$freq_B[i]), 
+      cont_table <- matrix(c(results[[freq_col_A]][i], results[[freq_col_B]][i],
+                            sum(results[[freq_col_A]]) - results[[freq_col_A]][i],
+                            sum(results[[freq_col_B]]) - results[[freq_col_B]][i]), 
                           nrow = 2, byrow = TRUE)
       
       # Determine test method
@@ -656,9 +670,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   for (n in min_length:max_length) {
     if (statistical) {
       analysis_results[[paste0("length_", n)]] <- analyze_statistical(
-        seq_A, seq_B, n, correction, test_method, min_expected)
+        seq_A, seq_B, n, correction, test_method, min_expected, groups)
     } else {
-      analysis_results[[paste0("length_", n)]] <- analyze_discrimination(seq_A, seq_B, n)
+      analysis_results[[paste0("length_", n)]] <- analyze_discrimination(seq_A, seq_B, n, groups)
     }
   }
   
@@ -727,33 +741,42 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     create_heatmap <- function(patterns, groups) {
       if (nrow(patterns) == 0) return()
       
+      # Detect frequency column names dynamically
+      freq_cols <- grep("^freq_", names(patterns), value = TRUE)
+      prop_cols <- grep("^prop_", names(patterns), value = TRUE)
+      
       # Create residual matrix for heatmap
       if (parameters$statistical) {
         # For statistical analysis, use adjusted standardized residuals for better visualization
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         
-        # Calculate better residuals for visualization
-        total_A <- sum(residual_data$freq_A)
-        total_B <- sum(residual_data$freq_B)
-        total_overall <- total_A + total_B
-        
-        # Calculate proportions within each group
-        prop_A <- residual_data$freq_A / total_A
-        prop_B <- residual_data$freq_B / total_B
-        
-        # Use standardized proportion differences (z-score like)
-        # This shows how much each pattern deviates from equal representation
-        overall_prop <- (residual_data$freq_A + residual_data$freq_B) / total_overall
-        
-        # Calculate standard error for proportion difference
-        se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
-        se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
-        
-        # Standardized deviations from expected proportion
-        resid_A <- (prop_A - overall_prop) / se_A
-        resid_B <- (prop_B - overall_prop) / se_B
-        
-        residual_matrix <- cbind(resid_A, resid_B)
+        # Calculate better residuals for visualization using dynamic column names
+        if (length(freq_cols) >= 2) {
+          total_A <- sum(residual_data[[freq_cols[1]]])
+          total_B <- sum(residual_data[[freq_cols[2]]])
+          total_overall <- total_A + total_B
+          
+          # Calculate proportions within each group
+          prop_A <- residual_data[[freq_cols[1]]] / total_A
+          prop_B <- residual_data[[freq_cols[2]]] / total_B
+          
+          # Use standardized proportion differences (z-score like)
+          # This shows how much each pattern deviates from equal representation
+          overall_prop <- (residual_data[[freq_cols[1]]] + residual_data[[freq_cols[2]]]) / total_overall
+          
+          # Calculate standard error for proportion difference
+          se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
+          se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
+          
+          # Standardized deviations from expected proportion
+          resid_A <- (prop_A - overall_prop) / se_A
+          resid_B <- (prop_B - overall_prop) / se_B
+          
+          residual_matrix <- cbind(resid_A, resid_B)
+        } else {
+          # Fallback for insufficient data
+          residual_matrix <- matrix(0, nrow = nrow(residual_data), ncol = 2)
+        }
       } else {
         # For discrimination analysis, use proportion differences
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
@@ -984,33 +1007,42 @@ plot.compare_sequences <- function(x, ...) {
     create_heatmap <- function(patterns, groups) {
       if (nrow(patterns) == 0) return()
       
+      # Detect frequency column names dynamically
+      freq_cols <- grep("^freq_", names(patterns), value = TRUE)
+      prop_cols <- grep("^prop_", names(patterns), value = TRUE)
+      
       # Create residual matrix for heatmap
       if (parameters$statistical) {
         # For statistical analysis, use adjusted standardized residuals for better visualization
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         
-        # Calculate better residuals for visualization
-        total_A <- sum(residual_data$freq_A)
-        total_B <- sum(residual_data$freq_B)
-        total_overall <- total_A + total_B
-        
-        # Calculate proportions within each group
-        prop_A <- residual_data$freq_A / total_A
-        prop_B <- residual_data$freq_B / total_B
-        
-        # Use standardized proportion differences (z-score like)
-        # This shows how much each pattern deviates from equal representation
-        overall_prop <- (residual_data$freq_A + residual_data$freq_B) / total_overall
-        
-        # Calculate standard error for proportion difference
-        se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
-        se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
-        
-        # Standardized deviations from expected proportion
-        resid_A <- (prop_A - overall_prop) / se_A
-        resid_B <- (prop_B - overall_prop) / se_B
-        
-        residual_matrix <- cbind(resid_A, resid_B)
+        # Calculate better residuals for visualization using dynamic column names
+        if (length(freq_cols) >= 2) {
+          total_A <- sum(residual_data[[freq_cols[1]]])
+          total_B <- sum(residual_data[[freq_cols[2]]])
+          total_overall <- total_A + total_B
+          
+          # Calculate proportions within each group
+          prop_A <- residual_data[[freq_cols[1]]] / total_A
+          prop_B <- residual_data[[freq_cols[2]]] / total_B
+          
+          # Use standardized proportion differences (z-score like)
+          # This shows how much each pattern deviates from equal representation
+          overall_prop <- (residual_data[[freq_cols[1]]] + residual_data[[freq_cols[2]]]) / total_overall
+          
+          # Calculate standard error for proportion difference
+          se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
+          se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
+          
+          # Standardized deviations from expected proportion
+          resid_A <- (prop_A - overall_prop) / se_A
+          resid_B <- (prop_B - overall_prop) / se_B
+          
+          residual_matrix <- cbind(resid_A, resid_B)
+        } else {
+          # Fallback for insufficient data
+          residual_matrix <- matrix(0, nrow = nrow(residual_data), ncol = 2)
+        }
       } else {
         # For discrimination analysis, use proportion differences
         residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
@@ -1022,9 +1054,9 @@ plot.compare_sequences <- function(x, ...) {
       colnames(residual_matrix) <- groups
       
       # Create the heatmap
-      par(mar = c(5, 12, 4, 1))
       # Set up layout for main plot + legend
       layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
+      par(mar = c(5, 12, 4, 1))
       
       # Color palette
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
