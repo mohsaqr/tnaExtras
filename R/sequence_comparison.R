@@ -842,9 +842,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         if (nrow(patterns) > 0) {
           tryCatch({
             create_heatmap(patterns, groups)
-            cat(sprintf("✓ Created %s-length subsequences plot\n", length_num))
+            cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
-            cat(sprintf("⚠ Could not create %s-length plot: %s\n", length_num, e$message))
+            cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
           })
         }
       }
@@ -852,9 +852,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Create combined plot
       tryCatch({
         create_heatmap(summary_output, groups)
-        cat("✓ Created combined discriminating patterns plot\n")
+        cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
-        cat("⚠ Could not create combined plot:", e$message, "\n")
+        cat("[WARN] Could not create combined plot:", e$message, "\n")
       })
     }
     
@@ -1106,9 +1106,9 @@ plot.compare_sequences <- function(x, ...) {
         if (nrow(patterns) > 0) {
           tryCatch({
             create_heatmap(patterns, groups)
-            cat(sprintf("✓ Created %s-length subsequences plot\n", length_num))
+            cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
-            cat(sprintf("⚠ Could not create %s-length plot: %s\n", length_num, e$message))
+            cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
           })
         }
       }
@@ -1116,9 +1116,9 @@ plot.compare_sequences <- function(x, ...) {
       # Create combined plot
       tryCatch({
         create_heatmap(summary_output, groups)
-        cat("✓ Created combined discriminating patterns plot\n")
+        cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
-        cat("⚠ Could not create combined plot:", e$message, "\n")
+        cat("[WARN] Could not create combined plot:", e$message, "\n")
       })
     }
   }

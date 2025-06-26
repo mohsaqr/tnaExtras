@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/reference/test_package.html#special-files
 
 library(testthat)
-library(tnatest)
+library(tnaExtras)
 
-test_check("tnatest") 
+test_check("tnaExtras") 

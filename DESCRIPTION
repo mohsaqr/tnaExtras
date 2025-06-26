@@ -1,6 +1,7 @@
 Package: tnaExtras
 Title: Temporal Network Analysis and Sequential Pattern Detection Extras
 Version: 0.3.0
+Depends: R (>= 2.10)
 Authors@R: 
     person("Mohammed", "Saqr", , "mohammed.saqr@example.com", role = c("aut", "cre"))
 Author: Mohammed Saqr [aut, cre]
