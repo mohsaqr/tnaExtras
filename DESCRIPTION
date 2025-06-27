@@ -12,13 +12,16 @@ Description: A comprehensive toolkit for analyzing temporal patterns in sequenti
     and temporal network analysis. Supports multi-group analysis (3+ groups) in 
     addition to traditional two-group comparisons. NEW in v0.3.0: Association Rule 
     Learning with Apriori and FP-Growth algorithms for discovering frequent patterns 
-    and rules in transaction data. Includes statistical testing capabilities, 
-    comprehensive visualization support, and measures for system stability and 
-    favorability analysis. All algorithms implemented with no external dependencies.
-    Package includes two comprehensive educational datasets: student engagement 
-    sequences (1000 students × 25 time points) and student self-regulation 
-    sequences across academic disciplines (2000 students × 26 time points) for 
-    demonstration and educational purposes.
+    and rules in transaction data. NEW: Advanced sequence clustering with multiple 
+    distance methods (Euclidean, Hamming, LCS, transition analysis, optimal matching, 
+    stringdist integration) and clustering algorithms (PAM, hierarchical methods). 
+    Features Mixture Markov Model clustering with EM algorithm. Includes statistical 
+    testing capabilities, comprehensive visualization support, and measures for 
+    system stability and favorability analysis. All algorithms implemented with 
+    minimal external dependencies. Package includes two comprehensive educational 
+    datasets: student engagement sequences (1000 students × 25 time points) and 
+    student self-regulation sequences across academic disciplines (2000 students × 26 
+    time points) for demonstration and educational purposes.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -27,11 +30,16 @@ Imports:
     stats,
     graphics,
     grDevices,
-    utils
+    utils,
+    cluster,
+    parallel,
+    stringdist
 Suggests: 
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    nnet,
+    numDeriv
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 URL: https://github.com/yourusername/tnaExtras
