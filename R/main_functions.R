@@ -478,12 +478,12 @@ compare_clustering_methods <- function(data,
 #'   T3 = c("C", "C", "A", "B")
 #' )
 #' 
-#' distances <- analyze_sequences(data, c("euclidean", "lcs", "hamming"))
+#' distances <- analyze_distances(data, c("euclidean", "lcs", "hamming"))
 #' # Use distances$euclidean, distances$lcs, etc.
 #' }
 #'
 #' @export
-analyze_sequences <- function(data, 
+analyze_distances <- function(data, 
                              methods = c("euclidean", "lcs", "transition"),
                              ...) {
   
@@ -538,15 +538,15 @@ analyze_sequences <- function(data,
 #' )
 #' 
 #' # Sequential analysis
-#' analysis <- sequence_complete_analysis(data)
+#' analysis <- cluster_complete_analysis(data)
 #' 
 #' # Parallel analysis (faster for multiple distance methods)
-#' analysis_parallel <- sequence_complete_analysis(data, n_cores = 4)
+#' analysis_parallel <- cluster_complete_analysis(data, n_cores = 4)
 #' print(analysis$summary)
 #' }
 #'
 #' @export
-sequence_complete_analysis <- function(data, 
+cluster_complete_analysis <- function(data, 
                                       k_range = 2:5,
                                       distance_methods = c("euclidean", "lcs", "transition"),
                                       clustering_methods = c("pam", "ward.D2"),

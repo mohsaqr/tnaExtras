@@ -123,7 +123,7 @@ test_that("find_clusters_range works", {
   expect_true("k3" %in% names(results$all_results))
 })
 
-test_that("analyze_sequences works", {
+test_that("analyze_distances works", {
   # Test data
   data <- data.frame(
     T1 = c("A", "B", "A", "C"),
@@ -132,7 +132,7 @@ test_that("analyze_sequences works", {
   )
   
   # Test multiple methods
-  results <- analyze_sequences(data, methods = c("euclidean", "hamming"))
+  results <- analyze_distances(data, methods = c("euclidean", "hamming"))
   expect_type(results, "list")
   expect_equal(length(results), 2)
   expect_true("euclidean" %in% names(results))
@@ -141,7 +141,7 @@ test_that("analyze_sequences works", {
   expect_s3_class(results$hamming, "dist")
 })
 
-test_that("sequence_complete_analysis works", {
+test_that("cluster_complete_analysis works", {
   # Test data
   data <- data.frame(
     T1 = c("A", "B", "A", "C", "A", "B"),
@@ -150,7 +150,7 @@ test_that("sequence_complete_analysis works", {
   )
   
   # Test complete analysis
-  analysis <- sequence_complete_analysis(data, k_range = 2:3, 
+  analysis <- cluster_complete_analysis(data, k_range = 2:3, 
                                         distance_methods = c("euclidean", "hamming"),
                                         clustering_methods = c("pam"))
   expect_type(analysis, "list")

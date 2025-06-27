@@ -5,7 +5,7 @@
 
 ## Overview
 
-**tnaCluster** provides advanced methods for sequence dissimilarity analysis and clustering, particularly designed for temporal network analysis and collaborative learning regulation data. The package implements multiple distance measures including innovative Markov-based transition analysis with higher-order patterns, time-weighted transitions, and pattern complexity measures.
+**tnaExtras** provides advanced methods for sequence dissimilarity analysis and clustering, particularly designed for temporal network analysis and collaborative learning regulation data. The package implements multiple distance measures including innovative Markov-based transition analysis with higher-order patterns, time-weighted transitions, and pattern complexity measures.
 
 ## Key Features
 
@@ -19,17 +19,14 @@
 ## Installation
 
 ```r
-# Install from CRAN (when available)
-install.packages("tnaCluster")
-
-# Or install development version from GitHub
-devtools::install_github("username/tnaCluster")
+# Install from GitHub
+devtools::install_github("mohsaqr/tnaExtras")
 ```
 
 ## Quick Start
 
 ```r
-library(tnaCluster)
+library(tnaExtras)
 
 # Example sequence data
 data <- data.frame(
@@ -83,7 +80,7 @@ print(comparison)
 
 ```r
 # Test multiple methods and parameters
-analysis <- sequence_complete_analysis(
+analysis <- cluster_complete_analysis(
   data, 
   k_range = 2:4,
   distance_methods = c("euclidean", "lcs", "transition"),
@@ -98,7 +95,7 @@ print(analysis$summary)
 
 ```r
 # Compare different distance measures
-distances <- analyze_sequences(data, 
+distances <- analyze_distances(data, 
   methods = c("euclidean", "lv", "transition"))
 
 # Use distances for further analysis
@@ -129,7 +126,7 @@ result <- cluster_sequences(data, k = 2,
 data <- your_sequence_data
 
 # 2. Explore distance methods
-distances <- analyze_sequences(data, 
+distances <- analyze_distances(data, 
   methods = c("euclidean", "lcs", "transition"))
 
 # 3. Compare clustering approaches

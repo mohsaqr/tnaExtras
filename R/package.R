@@ -1,9 +1,9 @@
 #' @keywords internal
 "_PACKAGE"
 
-#' tnaCluster: Advanced Sequence Analysis and Clustering for Temporal Network Analysis
+#' tnaExtras: Advanced Sequence Analysis and Clustering for Temporal Network Analysis
 #'
-#' The tnaCluster package provides advanced methods for sequence dissimilarity analysis 
+#' The tnaExtras package provides advanced methods for sequence dissimilarity analysis 
 #' and clustering, particularly designed for temporal network analysis and collaborative 
 #' learning regulation data. The package implements multiple distance measures including 
 #' an innovative Markov-based transition analysis with higher-order patterns, 
@@ -19,8 +19,8 @@
 #'   \item \code{\link{find_optimal_mmm}} - Enhanced model selection for MMM with comprehensive diagnostics
 #'   \item \code{\link{find_clusters_range}} - Test multiple k values without optimization
 #'   \item \code{\link{compare_clustering_methods}} - Compare different clustering algorithms
-#'   \item \code{\link{analyze_sequences}} - Analyze multiple distance methods
-#'   \item \code{\link{sequence_complete_analysis}} - Comprehensive analysis workflow
+#'   \item \code{\link{analyze_distances}} - Analyze multiple distance methods
+#'   \item \code{\link{cluster_complete_analysis}} - Comprehensive analysis workflow
 #' }
 #'
 #' @section Distance Methods:
@@ -98,7 +98,7 @@
 #' optimal_mmm_parallel <- find_optimal_mmm(data, k_range = 2:4, parallel = TRUE)
 #' 
 #' # Complete analysis with parallel processing
-#' complete_analysis <- sequence_complete_analysis(data, parallel = TRUE)
+#' complete_analysis <- cluster_complete_analysis(data, parallel = TRUE)
 #' print(optimal_mmm_result$best_result)
 #' 
 #' # MMM clustering with specified k
@@ -107,8 +107,8 @@
 #'
 #' @author TNA Clustering Team
 #' @docType package
-#' @name tnaCluster-package
-#' @aliases tnaCluster
+#' @name tnaExtras-clustering
+#' @aliases tnaExtras-clustering
 #' @importFrom cluster pam silhouette
 #' @importFrom stats cutree dist hclust setNames
 #' @importFrom stringdist stringdist
