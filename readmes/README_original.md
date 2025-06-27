@@ -1,4 +1,4 @@
-# tnaExtras: Transition Network Analysis and Sequential Pattern Detection Extras (Experimental)
+# tnaExtras: Transition Network Analysis and Sequential Pattern Detection Extras
 
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/mohsaqr/tnaExtras)
 [![Performance](https://img.shields.io/badge/performance-optimized-brightgreen)](https://github.com/mohsaqr/tnaExtras)
