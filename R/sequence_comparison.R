@@ -352,6 +352,8 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5).
 #'   Only applies to 2-group statistical analysis
 #' @param min_frequency Numeric, minimum frequency for pattern inclusion in multi-group analysis (default: 2)
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
 #'
 #' @return For 2 groups: A compare_sequences object with statistical measures
 #'         For 3+ groups: A compare_sequences_multi object with discrimination measures
@@ -376,7 +378,8 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' @export
 compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n = 10, 
                              detailed = FALSE, statistical = FALSE, correction = "bonferroni", 
-                             test_method = "auto", min_expected = 5, min_frequency = 2) {
+                             test_method = "auto", min_expected = 5, min_frequency = 2, 
+                             legend = TRUE, cell_values = FALSE) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -930,7 +933,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       correction = correction,
       test_method = test_method,
       min_expected = min_expected,
-      group_tna_info = group_info  # Store original group_tna metadata
+      group_tna_info = group_info,  # Store original group_tna metadata
+      legend = legend,
+      cell_values = cell_values
     ),
     stats = summary_stats
   )
@@ -1040,11 +1045,13 @@ summary.compare_sequences <- function(object, ...) {
 #' Plot Method for compare_sequences Objects
 #'
 #' @param x A compare_sequences object
-#' @param legend Logical, whether to show the color scale legend (default: TRUE)
-#' @param cell_values Logical, whether to display numeric values in each cell (default: FALSE)
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
 #' @param ... Additional arguments (unused)
 #' @export
-plot.compare_sequences <- function(x, legend = TRUE, cell_values = FALSE, ...) {
+plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
+  if (is.null(legend)) legend <- if (!is.null(x$parameters$legend)) x$parameters$legend else TRUE
+  if (is.null(cell_values)) cell_values <- if (!is.null(x$parameters$cell_values)) x$parameters$cell_values else FALSE
   cat("Recreating visualizations...\n")
   
   # Recreate the plots using the stored data
