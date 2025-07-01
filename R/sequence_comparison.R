@@ -824,7 +824,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
             breaks = seq(-max_val, max_val, length.out = 101),
             xlab = "Groups", ylab = "",
             axes = FALSE, 
-            main = paste("Top", n_patterns_to_show, "Discriminating Patterns"))
+            main = "")
       
       # Add properly aligned axes
       axis(1, at = x_coords, labels = colnames(residual_matrix), 
@@ -848,7 +848,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       
       image(x = 1, y = legend_y, z = t(legend_matrix), 
             col = colors, axes = FALSE, xlab = "", ylab = "",
-            main = "Scale")
+            main = "")
       
       # Add legend labels with better positioning
       legend_vals <- seq(-max_val, max_val, length.out = 5)
@@ -1115,7 +1115,7 @@ plot.compare_sequences <- function(x, ...) {
             breaks = seq(-max_val, max_val, length.out = 101),
             xlab = "Groups", ylab = "",
             axes = FALSE, 
-            main = paste("Top", n_patterns_to_show, "Discriminating Patterns"))
+            main = "")
       
       # Add properly aligned axes
       axis(1, at = x_coords, labels = colnames(residual_matrix), 
@@ -1139,7 +1139,7 @@ plot.compare_sequences <- function(x, ...) {
       
       image(x = 1, y = legend_y, z = t(legend_matrix), 
             col = colors, axes = FALSE, xlab = "", ylab = "",
-            main = "Scale")
+            main = "")
       
       # Add legend labels with better positioning
       legend_vals <- seq(-max_val, max_val, length.out = 5)
