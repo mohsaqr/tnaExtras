@@ -710,7 +710,6 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     }
     
     if (nrow(all_patterns) > 0) {
-      cat("DEBUG: Found", nrow(all_patterns), "total patterns before top_n filtering\n")
       if (statistical) {
         all_patterns <- all_patterns[order(all_patterns$significant, all_patterns$p_value, 
                                          decreasing = c(TRUE, FALSE)), ]
@@ -718,7 +717,6 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         all_patterns <- all_patterns[order(all_patterns$discrimination, decreasing = TRUE), ]
       }
       summary_output <- head(all_patterns, top_n)
-      cat("DEBUG: Using top_n =", top_n, ", selected", nrow(summary_output), "patterns for visualization\n")
     } else {
       summary_output <- data.frame()
     }
@@ -805,12 +803,11 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
-      # Set up wider figure and layout for main plot + legend
-      par(fig = c(0, 1, 0, 1))  # Use full plotting region
-      layout(matrix(c(1, 2), nrow = 1), widths = c(6, 1.5))  # Wider main plot
+      # Set up layout for main plot + legend with better proportions
+      layout(matrix(c(1, 2), nrow = 1), widths = c(7, 3))  # Better proportions: wider main plot, adequate legend space
       
       # Main heatmap plot with better margins
-      par(mar = c(6, left_margin, 4, 2))
+      par(mar = c(6, left_margin, 4, 1))
       
       # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
@@ -1101,12 +1098,11 @@ plot.compare_sequences <- function(x, ...) {
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
-      # Set up wider figure and layout for main plot + legend
-      par(fig = c(0, 1, 0, 1))  # Use full plotting region
-      layout(matrix(c(1, 2), nrow = 1), widths = c(6, 1.5))  # Wider main plot
+      # Set up layout for main plot + legend with better proportions
+      layout(matrix(c(1, 2), nrow = 1), widths = c(7, 3))  # Better proportions: wider main plot, adequate legend space
       
       # Main heatmap plot with better margins
-      par(mar = c(6, left_margin, 4, 2))
+      par(mar = c(6, left_margin, 4, 1))
       
       # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
