@@ -914,9 +914,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
           for (j in seq_along(x_coords)) {
             val <- residual_matrix[i, j]
             label <- formatC(val, digits = 2, format = "f")
-            # Draw thinner gray halo
-            text(j, i, labels = label, cex = 0.83, col = "gray50", font = 2)
-            # Draw white bold text
+            # Draw only bold white text
             text(j, i, labels = label, cex = 0.8, col = "white", font = 2)
           }
         }
@@ -1288,9 +1286,7 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
           for (j in seq_along(x_coords)) {
             val <- residual_matrix[i, j]
             label <- formatC(val, digits = 2, format = "f")
-            # Draw thinner gray halo
-            text(j, i, labels = label, cex = 0.83, col = "gray50", font = 2)
-            # Draw white bold text
+            # Draw only bold white text
             text(j, i, labels = label, cex = 0.8, col = "white", font = 2)
           }
         }
