@@ -837,8 +837,14 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
 =======
       if (legend) {
-        # Set up layout for main plot + legend with better proportions
-        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+        # Set up layout for main plot + legend with legend width exactly 6 mm
+        legend_width_mm <- 6
+        legend_width_in <- legend_width_mm / 25.4
+        device_width_in <- par("din")[1]
+        # Ensure the legend is at least a small fraction if device is very small
+        legend_width_frac <- min(legend_width_in / device_width_in, 0.5)
+        main_width_frac <- 1 - legend_width_frac
+        layout(matrix(c(1, 2), nrow = 1), widths = c(main_width_frac, legend_width_frac))
       } else {
         layout(matrix(1))
       }
@@ -1211,8 +1217,14 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
       layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
 =======
       if (legend) {
-        # Set up layout for main plot + legend with better proportions
-        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+        # Set up layout for main plot + legend with legend width exactly 6 mm
+        legend_width_mm <- 6
+        legend_width_in <- legend_width_mm / 25.4
+        device_width_in <- par("din")[1]
+        # Ensure the legend is at least a small fraction if device is very small
+        legend_width_frac <- min(legend_width_in / device_width_in, 0.5)
+        main_width_frac <- 1 - legend_width_frac
+        layout(matrix(c(1, 2), nrow = 1), widths = c(main_width_frac, legend_width_frac))
       } else {
         layout(matrix(1))
       }
