@@ -752,11 +752,13 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       freq_cols <- grep("^freq_", names(patterns), value = TRUE)
       prop_cols <- grep("^prop_", names(patterns), value = TRUE)
       
+      # Ensure we use exactly top_n patterns (or fewer if not available)
+      n_patterns_to_show <- min(nrow(patterns), parameters$top_n)
+      residual_data <- patterns[1:n_patterns_to_show, , drop = FALSE]
+      
       # Create residual matrix for heatmap
       if (parameters$statistical) {
         # For statistical analysis, use adjusted standardized residuals for better visualization
-        residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
-        
         # Calculate better residuals for visualization using dynamic column names
         if (length(freq_cols) >= 2) {
           total_A <- sum(residual_data[[freq_cols[1]]])
@@ -786,7 +788,6 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         }
       } else {
         # For discrimination analysis, use proportion differences
-        residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         prop_diff <- residual_data$prop_diff
         residual_matrix <- cbind(prop_diff, -prop_diff)
       }
@@ -794,45 +795,74 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       rownames(residual_matrix) <- residual_data$pattern
       colnames(residual_matrix) <- groups
       
-      # Create the heatmap
-      # Set up layout for main plot + legend
-      layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
-      par(mar = c(5, 12, 4, 1))
+      # Calculate dynamic margins based on pattern name lengths
+      max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
+      left_margin <- max(12, ceiling(max_pattern_length * 0.6))  # Dynamic left margin
+      
+      # Save current graphics parameters
+      old_par <- par(no.readonly = TRUE)
+      on.exit(par(old_par))
+      
+      # Set up wider figure and layout for main plot + legend
+      par(fig = c(0, 1, 0, 1))  # Use full plotting region
+      layout(matrix(c(1, 2), nrow = 1), widths = c(6, 1.5))  # Wider main plot
+      
+      # Main heatmap plot with better margins
+      par(mar = c(6, left_margin, 4, 2))
       
       # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
+      if (max_val == 0) max_val <- 1  # Avoid division by zero
       colors <- colorRampPalette(c("red", "white", "blue"))(100)
       
-      # Create heatmap
-      image(1:ncol(residual_matrix), 1:nrow(residual_matrix), 
-            t(residual_matrix), 
+      # Create coordinate vectors for proper alignment
+      x_coords <- seq_len(ncol(residual_matrix))
+      y_coords <- seq_len(nrow(residual_matrix))
+      
+      # Create heatmap with proper coordinate system
+      image(x = x_coords, y = y_coords, z = t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
-            xlab = "Groups", ylab = "",
-            axes = FALSE)
+            xlab = "Groups", ylab = "Patterns",
+            axes = FALSE, 
+            main = paste("Top", n_patterns_to_show, "Discriminating Patterns"))
       
-      # Add axes
-      axis(1, at = 1:ncol(residual_matrix), labels = colnames(residual_matrix))
-      axis(2, at = 1:nrow(residual_matrix), labels = rownames(residual_matrix), las = 2)
+      # Add properly aligned axes
+      axis(1, at = x_coords, labels = colnames(residual_matrix), 
+           tick = TRUE, line = 0)
+      axis(2, at = y_coords, labels = rownames(residual_matrix), 
+           las = 2, tick = TRUE, line = 0, cex.axis = 0.8)
       
-      # Add gradient legend
-      # Reset margins for legend
-      par(mar = c(5, 1, 4, 3))
+      # Add grid lines for better readability
+      abline(h = y_coords + 0.5, col = "lightgray", lwd = 0.5)
+      abline(v = x_coords + 0.5, col = "lightgray", lwd = 0.5)
+      
+      # Add a box around the plot
+      box()
+      
+      # Legend plot with better margins
+      par(mar = c(6, 1, 4, 4))
       
       # Create gradient legend
       legend_y <- seq(0, 1, length.out = 100)
       legend_matrix <- matrix(legend_y, ncol = 1)
       
-      image(1, legend_y, t(legend_matrix), 
-            col = colors, axes = FALSE, xlab = "", ylab = "")
+      image(x = 1, y = legend_y, z = t(legend_matrix), 
+            col = colors, axes = FALSE, xlab = "", ylab = "",
+            main = "Scale")
       
-      # Add legend labels
+      # Add legend labels with better positioning
       legend_vals <- seq(-max_val, max_val, length.out = 5)
-      axis(4, at = seq(0, 1, length.out = 5), labels = sprintf("%.2f", legend_vals), las = 2)
+      legend_positions <- seq(0, 1, length.out = 5)
+      axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
+           las = 2, cex.axis = 0.8)
       
-      # Add "Overrep." and "Underrep." labels (positioned at top and bottom)
-      text(1.2, 0.95, "Overrep.", cex = 0.8)
-      text(1.2, 0.05, "Underrep.", cex = 0.8)
+      # Add interpretive labels
+      mtext("Higher in Group 2", side = 4, line = 3, at = 0.9, cex = 0.7, col = "blue")
+      mtext("Higher in Group 1", side = 4, line = 3, at = 0.1, cex = 0.7, col = "red")
+      
+      # Add a box around the legend
+      box()
       
       # Reset layout
       layout(1)
@@ -1018,11 +1048,13 @@ plot.compare_sequences <- function(x, ...) {
       freq_cols <- grep("^freq_", names(patterns), value = TRUE)
       prop_cols <- grep("^prop_", names(patterns), value = TRUE)
       
+      # Ensure we use exactly top_n patterns (or fewer if not available)
+      n_patterns_to_show <- min(nrow(patterns), parameters$top_n)
+      residual_data <- patterns[1:n_patterns_to_show, , drop = FALSE]
+      
       # Create residual matrix for heatmap
       if (parameters$statistical) {
         # For statistical analysis, use adjusted standardized residuals for better visualization
-        residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
-        
         # Calculate better residuals for visualization using dynamic column names
         if (length(freq_cols) >= 2) {
           total_A <- sum(residual_data[[freq_cols[1]]])
@@ -1052,7 +1084,6 @@ plot.compare_sequences <- function(x, ...) {
         }
       } else {
         # For discrimination analysis, use proportion differences
-        residual_data <- patterns[1:min(nrow(patterns), parameters$top_n), ]
         prop_diff <- residual_data$prop_diff
         residual_matrix <- cbind(prop_diff, -prop_diff)
       }
@@ -1060,45 +1091,74 @@ plot.compare_sequences <- function(x, ...) {
       rownames(residual_matrix) <- residual_data$pattern
       colnames(residual_matrix) <- groups
       
-      # Create the heatmap
-      # Set up layout for main plot + legend
-      layout(matrix(c(1, 2), nrow = 1), widths = c(4, 1))
-      par(mar = c(5, 12, 4, 1))
+      # Calculate dynamic margins based on pattern name lengths
+      max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
+      left_margin <- max(12, ceiling(max_pattern_length * 0.6))  # Dynamic left margin
+      
+      # Save current graphics parameters
+      old_par <- par(no.readonly = TRUE)
+      on.exit(par(old_par))
+      
+      # Set up wider figure and layout for main plot + legend
+      par(fig = c(0, 1, 0, 1))  # Use full plotting region
+      layout(matrix(c(1, 2), nrow = 1), widths = c(6, 1.5))  # Wider main plot
+      
+      # Main heatmap plot with better margins
+      par(mar = c(6, left_margin, 4, 2))
       
       # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
+      if (max_val == 0) max_val <- 1  # Avoid division by zero
       colors <- colorRampPalette(c("red", "white", "blue"))(100)
       
-      # Create heatmap
-      image(1:ncol(residual_matrix), 1:nrow(residual_matrix), 
-            t(residual_matrix), 
+      # Create coordinate vectors for proper alignment
+      x_coords <- seq_len(ncol(residual_matrix))
+      y_coords <- seq_len(nrow(residual_matrix))
+      
+      # Create heatmap with proper coordinate system
+      image(x = x_coords, y = y_coords, z = t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
-            xlab = "Groups", ylab = "",
-            axes = FALSE)
+            xlab = "Groups", ylab = "Patterns",
+            axes = FALSE, 
+            main = paste("Top", n_patterns_to_show, "Discriminating Patterns"))
       
-      # Add axes
-      axis(1, at = 1:ncol(residual_matrix), labels = colnames(residual_matrix))
-      axis(2, at = 1:nrow(residual_matrix), labels = rownames(residual_matrix), las = 2)
+      # Add properly aligned axes
+      axis(1, at = x_coords, labels = colnames(residual_matrix), 
+           tick = TRUE, line = 0)
+      axis(2, at = y_coords, labels = rownames(residual_matrix), 
+           las = 2, tick = TRUE, line = 0, cex.axis = 0.8)
       
-      # Add gradient legend
-      # Reset margins for legend
-      par(mar = c(5, 1, 4, 3))
+      # Add grid lines for better readability
+      abline(h = y_coords + 0.5, col = "lightgray", lwd = 0.5)
+      abline(v = x_coords + 0.5, col = "lightgray", lwd = 0.5)
+      
+      # Add a box around the plot
+      box()
+      
+      # Legend plot with better margins
+      par(mar = c(6, 1, 4, 4))
       
       # Create gradient legend
       legend_y <- seq(0, 1, length.out = 100)
       legend_matrix <- matrix(legend_y, ncol = 1)
       
-      image(1, legend_y, t(legend_matrix), 
-            col = colors, axes = FALSE, xlab = "", ylab = "")
+      image(x = 1, y = legend_y, z = t(legend_matrix), 
+            col = colors, axes = FALSE, xlab = "", ylab = "",
+            main = "Scale")
       
-      # Add legend labels
+      # Add legend labels with better positioning
       legend_vals <- seq(-max_val, max_val, length.out = 5)
-      axis(4, at = seq(0, 1, length.out = 5), labels = sprintf("%.2f", legend_vals), las = 2)
+      legend_positions <- seq(0, 1, length.out = 5)
+      axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
+           las = 2, cex.axis = 0.8)
       
-      # Add "Overrep." and "Underrep." labels (positioned at top and bottom)
-      text(1.2, 0.95, "Overrep.", cex = 0.8)
-      text(1.2, 0.05, "Underrep.", cex = 0.8)
+      # Add interpretive labels
+      mtext("Higher in Group 2", side = 4, line = 3, at = 0.9, cex = 0.7, col = "blue")
+      mtext("Higher in Group 1", side = 4, line = 3, at = 0.1, cex = 0.7, col = "red")
+      
+      # Add a box around the legend
+      box()
       
       # Reset layout
       layout(1)
