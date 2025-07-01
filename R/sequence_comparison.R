@@ -812,7 +812,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
       if (max_val == 0) max_val <- 1  # Avoid division by zero
-      colors <- colorRampPalette(c("#D33F6A", "white", "#4A6FE8"))(100)
+      colors <- colorRampPalette(c("#023e8a", "white", "#9d0208"))(100)
       
       # Create coordinate vectors for proper alignment
       x_coords <- seq_len(ncol(residual_matrix))
