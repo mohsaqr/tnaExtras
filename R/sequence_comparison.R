@@ -745,7 +745,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   
   create_plots <- function(analysis_results, summary_output, parameters, groups) {
     # Helper function for creating heatmaps
-    create_heatmap <- function(patterns, groups) {
+    create_heatmap <- function(patterns, groups, legend, cell_values) {
       if (nrow(patterns) == 0) return()
       
       # Detect frequency column names dynamically
@@ -803,8 +803,12 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
-      # Set up layout for main plot + legend with better proportions
-      layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+      if (legend) {
+        # Set up layout for main plot + legend with better proportions
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+      } else {
+        layout(matrix(1))
+      }
       
       # Main heatmap plot with better margins
       par(mar = c(6, left_margin, 4, 1))
@@ -839,25 +843,33 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Add a box around the plot
       box()
       
+      # Add cell values if requested
+      if (cell_values) {
+        for (i in seq_along(y_coords)) {
+          for (j in seq_along(x_coords)) {
+            val <- residual_matrix[i, j]
+            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+          }
+        }
+      }
+      
       # Legend plot with margins
-      par(mar = c(6, 1, 4, 3))
-      
-      # Create gradient legend
-      legend_y <- seq(0, 1, length.out = 100)
-      legend_matrix <- matrix(legend_y, ncol = 1)
-      
-      image(x = 1, y = legend_y, z = t(legend_matrix), 
-            col = colors, axes = FALSE, xlab = "", ylab = "",
-            main = "")
-      
-      # Add legend labels with better positioning
-      legend_vals <- seq(-max_val, max_val, length.out = 5)
-      legend_positions <- seq(0, 1, length.out = 5)
-      axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
-           las = 2, cex.axis = 0.8)
-      
-      # Add a box around the legend
-      box()
+      if (legend) {
+        par(mar = c(6, 1, 4, 3))
+        # Create gradient legend
+        legend_y <- seq(0, 1, length.out = 100)
+        legend_matrix <- matrix(legend_y, ncol = 1)
+        image(x = 1, y = legend_y, z = t(legend_matrix), 
+              col = colors, axes = FALSE, xlab = "", ylab = "",
+              main = "")
+        # Add legend labels with better positioning
+        legend_vals <- seq(-max_val, max_val, length.out = 5)
+        legend_positions <- seq(0, 1, length.out = 5)
+        axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
+             las = 2, cex.axis = 0.8)
+        # Add a box around the legend
+        box()
+      }
       
       # Reset layout
       layout(1)
@@ -873,7 +885,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         
         if (nrow(patterns) > 0) {
           tryCatch({
-            create_heatmap(patterns, groups)
+            create_heatmap(patterns, groups, TRUE, FALSE)
             cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
             cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
@@ -883,7 +895,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
       # Create combined plot
       tryCatch({
-        create_heatmap(summary_output, groups)
+        create_heatmap(summary_output, groups, TRUE, FALSE)
         cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
         cat("[WARN] Could not create combined plot:", e$message, "\n")
@@ -1028,15 +1040,17 @@ summary.compare_sequences <- function(object, ...) {
 #' Plot Method for compare_sequences Objects
 #'
 #' @param x A compare_sequences object
+#' @param legend Logical, whether to show the color scale legend (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell (default: FALSE)
 #' @param ... Additional arguments (unused)
 #' @export
-plot.compare_sequences <- function(x, ...) {
+plot.compare_sequences <- function(x, legend = TRUE, cell_values = FALSE, ...) {
   cat("Recreating visualizations...\n")
   
   # Recreate the plots using the stored data
-  create_plots <- function(summary_output, parameters, groups) {
+  create_plots <- function(summary_output, parameters, groups, legend, cell_values) {
     # Helper function for creating heatmaps
-    create_heatmap <- function(patterns, groups) {
+    create_heatmap <- function(patterns, groups, legend, cell_values) {
       if (nrow(patterns) == 0) return()
       
       # Detect frequency column names dynamically
@@ -1094,8 +1108,12 @@ plot.compare_sequences <- function(x, ...) {
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
-      # Set up layout for main plot + legend with better proportions
-      layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+      if (legend) {
+        # Set up layout for main plot + legend with better proportions
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+      } else {
+        layout(matrix(1))
+      }
       
       # Main heatmap plot with better margins
       par(mar = c(6, left_margin, 4, 1))
@@ -1130,25 +1148,33 @@ plot.compare_sequences <- function(x, ...) {
       # Add a box around the plot
       box()
       
+      # Add cell values if requested
+      if (cell_values) {
+        for (i in seq_along(y_coords)) {
+          for (j in seq_along(x_coords)) {
+            val <- residual_matrix[i, j]
+            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+          }
+        }
+      }
+      
       # Legend plot with margins
-      par(mar = c(6, 1, 4, 3))
-      
-      # Create gradient legend
-      legend_y <- seq(0, 1, length.out = 100)
-      legend_matrix <- matrix(legend_y, ncol = 1)
-      
-      image(x = 1, y = legend_y, z = t(legend_matrix), 
-            col = colors, axes = FALSE, xlab = "", ylab = "",
-            main = "")
-      
-      # Add legend labels with better positioning
-      legend_vals <- seq(-max_val, max_val, length.out = 5)
-      legend_positions <- seq(0, 1, length.out = 5)
-      axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
-           las = 2, cex.axis = 0.8)
-      
-      # Add a box around the legend
-      box()
+      if (legend) {
+        par(mar = c(6, 1, 4, 3))
+        # Create gradient legend
+        legend_y <- seq(0, 1, length.out = 100)
+        legend_matrix <- matrix(legend_y, ncol = 1)
+        image(x = 1, y = legend_y, z = t(legend_matrix), 
+              col = colors, axes = FALSE, xlab = "", ylab = "",
+              main = "")
+        # Add legend labels with better positioning
+        legend_vals <- seq(-max_val, max_val, length.out = 5)
+        legend_positions <- seq(0, 1, length.out = 5)
+        axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
+             las = 2, cex.axis = 0.8)
+        # Add a box around the legend
+        box()
+      }
       
       # Reset layout
       layout(1)
@@ -1162,7 +1188,7 @@ plot.compare_sequences <- function(x, ...) {
         
         if (nrow(patterns) > 0) {
           tryCatch({
-            create_heatmap(patterns, groups)
+            create_heatmap(patterns, groups, legend, cell_values)
             cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
             cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
@@ -1172,7 +1198,7 @@ plot.compare_sequences <- function(x, ...) {
     } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
       # Create combined plot
       tryCatch({
-        create_heatmap(summary_output, groups)
+        create_heatmap(summary_output, groups, legend, cell_values)
         cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
         cat("[WARN] Could not create combined plot:", e$message, "\n")
@@ -1181,7 +1207,7 @@ plot.compare_sequences <- function(x, ...) {
   }
   
   # Create plots
-  create_plots(x$summary, x$parameters, x$parameters$groups)
+  create_plots(x$summary, x$parameters, x$parameters$groups, legend, cell_values)
   cat("Plot recreation complete!\n")
 }
 
