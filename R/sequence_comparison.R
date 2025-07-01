@@ -710,6 +710,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     }
     
     if (nrow(all_patterns) > 0) {
+      cat("DEBUG: Found", nrow(all_patterns), "total patterns before top_n filtering\n")
       if (statistical) {
         all_patterns <- all_patterns[order(all_patterns$significant, all_patterns$p_value, 
                                          decreasing = c(TRUE, FALSE)), ]
@@ -717,6 +718,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         all_patterns <- all_patterns[order(all_patterns$discrimination, decreasing = TRUE), ]
       }
       summary_output <- head(all_patterns, top_n)
+      cat("DEBUG: Using top_n =", top_n, ", selected", nrow(summary_output), "patterns for visualization\n")
     } else {
       summary_output <- data.frame()
     }
@@ -840,8 +842,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Add a box around the plot
       box()
       
-      # Legend plot with better margins
-      par(mar = c(6, 1, 4, 4))
+      # Legend plot with better margins (increased right margin for labels)
+      par(mar = c(6, 1, 4, 7))
       
       # Create gradient legend
       legend_y <- seq(0, 1, length.out = 100)
@@ -857,9 +859,9 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
            las = 2, cex.axis = 0.8)
       
-      # Add interpretive labels
-      mtext("Higher in Group 2", side = 4, line = 3, at = 0.9, cex = 0.7, col = "blue")
-      mtext("Higher in Group 1", side = 4, line = 3, at = 0.1, cex = 0.7, col = "red")
+      # Add interpretive labels positioned outside the color scale
+      mtext("Overrep.", side = 4, line = 5.5, at = 0.9, cex = 0.7, col = "blue")
+      mtext("Underrep.", side = 4, line = 5.5, at = 0.1, cex = 0.7, col = "red")
       
       # Add a box around the legend
       box()
@@ -1136,8 +1138,8 @@ plot.compare_sequences <- function(x, ...) {
       # Add a box around the plot
       box()
       
-      # Legend plot with better margins
-      par(mar = c(6, 1, 4, 4))
+      # Legend plot with better margins (increased right margin for labels)
+      par(mar = c(6, 1, 4, 7))
       
       # Create gradient legend
       legend_y <- seq(0, 1, length.out = 100)
@@ -1153,9 +1155,9 @@ plot.compare_sequences <- function(x, ...) {
       axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
            las = 2, cex.axis = 0.8)
       
-      # Add interpretive labels
-      mtext("Higher in Group 2", side = 4, line = 3, at = 0.9, cex = 0.7, col = "blue")
-      mtext("Higher in Group 1", side = 4, line = 3, at = 0.1, cex = 0.7, col = "red")
+      # Add interpretive labels positioned outside the color scale
+      mtext("Overrep.", side = 4, line = 5.5, at = 0.9, cex = 0.7, col = "blue")
+      mtext("Underrep.", side = 4, line = 5.5, at = 0.1, cex = 0.7, col = "red")
       
       # Add a box around the legend
       box()
