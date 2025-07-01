@@ -34,6 +34,8 @@
 #' @param max_length Maximum subsequence length to analyze (default: 5)
 #' @param top_n Number of top patterns to return and display (default: 10)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
 #'
 #' @return A compare_sequences_multi object containing:
 #' \describe{
@@ -58,7 +60,7 @@
 #' }
 #'
 compare_sequences_multi_internal <- function(data, group, min_length = 2, max_length = 5, 
-                                             top_n = 10, min_frequency = 2) {
+                                             top_n = 10, min_frequency = 2, legend = TRUE, cell_values = FALSE) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -311,7 +313,9 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
       min_length = min_length,
       max_length = max_length,
       top_n = top_n,
-      min_frequency = min_frequency
+      min_frequency = min_frequency,
+      legend = legend,
+      cell_values = cell_values
     )
   )
   
@@ -472,7 +476,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     return(compare_sequences_multi_internal(data = original_data,
                                            group = if(is.character(group) && length(group) == 1) group else "Group",
                                            min_length = min_length, max_length = max_length,
-                                           top_n = top_n, min_frequency = min_frequency))
+                                           top_n = top_n, min_frequency = min_frequency,
+                                           legend = legend, cell_values = cell_values))
   } else if (length(groups) != 2) {
     stop("Group variable must have exactly 2 levels for two-group analysis, found: ", length(groups), call. = FALSE)
   }
