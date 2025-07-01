@@ -804,7 +804,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       on.exit(par(old_par))
       
       # Set up layout for main plot + legend with better proportions
-      layout(matrix(c(1, 2), nrow = 1), widths = c(9, 1))  # Much thinner legend
+      layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
       
       # Main heatmap plot with better margins
       par(mar = c(6, left_margin, 4, 1))
@@ -1095,7 +1095,7 @@ plot.compare_sequences <- function(x, ...) {
       on.exit(par(old_par))
       
       # Set up layout for main plot + legend with better proportions
-      layout(matrix(c(1, 2), nrow = 1), widths = c(9, 1))  # Much thinner legend
+      layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
       
       # Main heatmap plot with better margins
       par(mar = c(6, left_margin, 4, 1))
