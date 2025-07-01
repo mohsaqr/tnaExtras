@@ -859,7 +859,11 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         for (i in seq_along(y_coords)) {
           for (j in seq_along(x_coords)) {
             val <- residual_matrix[i, j]
-            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+            label <- formatC(val, digits = 2, format = "f")
+            # Draw halo (white, slightly larger)
+            text(j, i, labels = label, cex = 1, col = "white", font = 2)
+            # Draw main text (black, bold)
+            text(j, i, labels = label, cex = 0.7, col = "black", font = 2)
           }
         }
       }
@@ -1171,7 +1175,11 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
         for (i in seq_along(y_coords)) {
           for (j in seq_along(x_coords)) {
             val <- residual_matrix[i, j]
-            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+            label <- formatC(val, digits = 2, format = "f")
+            # Draw halo (white, slightly larger)
+            text(j, i, labels = label, cex = 1, col = "white", font = 2)
+            # Draw main text (black, bold)
+            text(j, i, labels = label, cex = 0.7, col = "black", font = 2)
           }
         }
       }
