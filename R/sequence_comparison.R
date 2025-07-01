@@ -805,21 +805,15 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       
       # Calculate dynamic margins based on pattern name lengths
       max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
-      left_margin <- max(12, ceiling(max_pattern_length * 0.6))  # Dynamic left margin
+      left_margin <- 6  # Fixed small margin to prevent issues
       
       # Save current graphics parameters
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
       if (legend) {
-        # Set up layout for main plot + legend with legend width exactly 6 mm
-        legend_width_mm <- 6
-        legend_width_in <- legend_width_mm / 25.4
-        device_width_in <- par("din")[1]
-        # Ensure the legend is at least a small fraction if device is very small
-        legend_width_frac <- min(legend_width_in / device_width_in, 0.5)
-        main_width_frac <- 1 - legend_width_frac
-        layout(matrix(c(1, 2), nrow = 1), widths = c(main_width_frac, legend_width_frac))
+        # Set up layout for main plot + legend with thin legend (approximately 6mm)
+        layout(matrix(c(1, 2), nrow = 1), widths = c(14, 1))  # Very thin legend
       } else {
         layout(matrix(1))
       }
@@ -1123,21 +1117,15 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
       
       # Calculate dynamic margins based on pattern name lengths
       max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
-      left_margin <- max(12, ceiling(max_pattern_length * 0.6))  # Dynamic left margin
+      left_margin <- 6  # Fixed small margin to prevent issues
       
       # Save current graphics parameters
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
       if (legend) {
-        # Set up layout for main plot + legend with legend width exactly 6 mm
-        legend_width_mm <- 6
-        legend_width_in <- legend_width_mm / 25.4
-        device_width_in <- par("din")[1]
-        # Ensure the legend is at least a small fraction if device is very small
-        legend_width_frac <- min(legend_width_in / device_width_in, 0.5)
-        main_width_frac <- 1 - legend_width_frac
-        layout(matrix(c(1, 2), nrow = 1), widths = c(main_width_frac, legend_width_frac))
+        # Set up layout for main plot + legend with thin legend (approximately 6mm)
+        layout(matrix(c(1, 2), nrow = 1), widths = c(14, 1))  # Very thin legend
       } else {
         layout(matrix(1))
       }
