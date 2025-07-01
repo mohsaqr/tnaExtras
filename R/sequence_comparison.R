@@ -822,7 +822,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       image(x = x_coords, y = y_coords, z = t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
-            xlab = "Groups", ylab = "Patterns",
+            xlab = "Groups", ylab = "",
             axes = FALSE, 
             main = paste("Top", n_patterns_to_show, "Discriminating Patterns"))
       
@@ -839,8 +839,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Add a box around the plot
       box()
       
-      # Legend plot with better margins (increased right margin for labels)
-      par(mar = c(6, 1, 4, 7))
+      # Legend plot with margins
+      par(mar = c(6, 1, 4, 3))
       
       # Create gradient legend
       legend_y <- seq(0, 1, length.out = 100)
@@ -855,10 +855,6 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       legend_positions <- seq(0, 1, length.out = 5)
       axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
            las = 2, cex.axis = 0.8)
-      
-      # Add interpretive labels positioned outside the color scale
-      mtext("Overrep.", side = 4, line = 5.5, at = 0.9, cex = 0.7, col = "blue")
-      mtext("Underrep.", side = 4, line = 5.5, at = 0.1, cex = 0.7, col = "red")
       
       # Add a box around the legend
       box()
@@ -1117,7 +1113,7 @@ plot.compare_sequences <- function(x, ...) {
       image(x = x_coords, y = y_coords, z = t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
-            xlab = "Groups", ylab = "Patterns",
+            xlab = "Groups", ylab = "",
             axes = FALSE, 
             main = paste("Top", n_patterns_to_show, "Discriminating Patterns"))
       
@@ -1134,8 +1130,8 @@ plot.compare_sequences <- function(x, ...) {
       # Add a box around the plot
       box()
       
-      # Legend plot with better margins (increased right margin for labels)
-      par(mar = c(6, 1, 4, 7))
+      # Legend plot with margins
+      par(mar = c(6, 1, 4, 3))
       
       # Create gradient legend
       legend_y <- seq(0, 1, length.out = 100)
@@ -1150,10 +1146,6 @@ plot.compare_sequences <- function(x, ...) {
       legend_positions <- seq(0, 1, length.out = 5)
       axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
            las = 2, cex.axis = 0.8)
-      
-      # Add interpretive labels positioned outside the color scale
-      mtext("Overrep.", side = 4, line = 5.5, at = 0.9, cex = 0.7, col = "blue")
-      mtext("Underrep.", side = 4, line = 5.5, at = 0.1, cex = 0.7, col = "red")
       
       # Add a box around the legend
       box()
