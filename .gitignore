@@ -42,4 +42,5 @@ vignettes/*.pdf
 docs/
 
 # translation temp files
-po/*~
+po/*~# Ignore generated plots
+Rplots.pdf

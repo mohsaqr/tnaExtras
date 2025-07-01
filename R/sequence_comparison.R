@@ -34,6 +34,8 @@
 #' @param max_length Maximum subsequence length to analyze (default: 5)
 #' @param top_n Number of top patterns to return and display (default: 10)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
 #'
 #' @return A compare_sequences_multi object containing:
 #' \describe{
@@ -58,7 +60,7 @@
 #' }
 #'
 compare_sequences_multi_internal <- function(data, group, min_length = 2, max_length = 5, 
-                                             top_n = 10, min_frequency = 2) {
+                                             top_n = 10, min_frequency = 2, legend = TRUE, cell_values = FALSE) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -311,7 +313,13 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
       min_length = min_length,
       max_length = max_length,
       top_n = top_n,
+<<<<<<< HEAD
       min_frequency = min_frequency
+=======
+      min_frequency = min_frequency,
+      legend = legend,
+      cell_values = cell_values
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
     )
   )
   
@@ -352,6 +360,11 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5).
 #'   Only applies to 2-group statistical analysis
 #' @param min_frequency Numeric, minimum frequency for pattern inclusion in multi-group analysis (default: 2)
+<<<<<<< HEAD
+=======
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
 #'
 #' @return For 2 groups: A compare_sequences object with statistical measures
 #'         For 3+ groups: A compare_sequences_multi object with discrimination measures
@@ -376,7 +389,12 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' @export
 compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n = 10, 
                              detailed = FALSE, statistical = FALSE, correction = "bonferroni", 
+<<<<<<< HEAD
                              test_method = "auto", min_expected = 5, min_frequency = 2) {
+=======
+                             test_method = "auto", min_expected = 5, min_frequency = 2, 
+                             legend = TRUE, cell_values = FALSE) {
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -469,7 +487,12 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     return(compare_sequences_multi_internal(data = original_data,
                                            group = if(is.character(group) && length(group) == 1) group else "Group",
                                            min_length = min_length, max_length = max_length,
+<<<<<<< HEAD
                                            top_n = top_n, min_frequency = min_frequency))
+=======
+                                           top_n = top_n, min_frequency = min_frequency,
+                                           legend = legend, cell_values = cell_values))
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
   } else if (length(groups) != 2) {
     stop("Group variable must have exactly 2 levels for two-group analysis, found: ", length(groups), call. = FALSE)
   }
@@ -743,9 +766,15 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   # CREATE VISUALIZATIONS
   # =====================================================================
   
+<<<<<<< HEAD
   create_plots <- function(analysis_results, summary_output, parameters, groups) {
     # Helper function for creating heatmaps
     create_heatmap <- function(patterns, groups) {
+=======
+  create_plots <- function(analysis_results, summary_output, parameters, groups, legend, cell_values) {
+    # Helper function for creating heatmaps
+    create_heatmap <- function(patterns, groups, legend, cell_values) {
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       if (nrow(patterns) == 0) return()
       
       # Detect frequency column names dynamically
@@ -803,8 +832,17 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
+<<<<<<< HEAD
       # Set up layout for main plot + legend with better proportions
       layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+=======
+      if (legend) {
+        # Set up layout for main plot + legend with better proportions
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+      } else {
+        layout(matrix(1))
+      }
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       
       # Main heatmap plot with better margins
       par(mar = c(6, left_margin, 4, 1))
@@ -812,13 +850,23 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Color palette (reversed: red-white-blue)
       max_val <- max(abs(residual_matrix), na.rm = TRUE)
       if (max_val == 0) max_val <- 1  # Avoid division by zero
+<<<<<<< HEAD
       colors <- colorRampPalette(c("#ff0000", "white", "#072ac8"))(100)
+=======
+      colors <- colorRampPalette(c("red", "white", "blue"))(100)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       
       # Create coordinate vectors for proper alignment
       x_coords <- seq_len(ncol(residual_matrix))
       y_coords <- seq_len(nrow(residual_matrix))
       
       # Create heatmap with proper coordinate system
+<<<<<<< HEAD
+=======
+      residual_matrix <- as.matrix(residual_matrix)
+      mode(residual_matrix) <- "numeric"
+      
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       image(x = x_coords, y = y_coords, z = t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
@@ -839,6 +887,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       # Add a box around the plot
       box()
       
+<<<<<<< HEAD
       # Legend plot with margins
       par(mar = c(6, 1, 4, 3))
       
@@ -858,6 +907,35 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       
       # Add a box around the legend
       box()
+=======
+      # Add cell values if requested
+      if (cell_values) {
+        for (i in seq_along(y_coords)) {
+          for (j in seq_along(x_coords)) {
+            val <- residual_matrix[i, j]
+            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+          }
+        }
+      }
+      
+      # Legend plot with margins
+      if (legend) {
+        par(mar = c(6, 1, 4, 3))
+        # Create gradient legend
+        legend_y <- seq(0, 1, length.out = 100)
+        legend_matrix <- matrix(legend_y, ncol = 1)
+        image(x = 1, y = legend_y, z = t(legend_matrix), 
+              col = colors, axes = FALSE, xlab = "", ylab = "",
+              main = "")
+        # Add legend labels with better positioning
+        legend_vals <- seq(-max_val, max_val, length.out = 5)
+        legend_positions <- seq(0, 1, length.out = 5)
+        axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
+             las = 2, cex.axis = 0.8)
+        # Add a box around the legend
+        box()
+      }
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       
       # Reset layout
       layout(1)
@@ -873,7 +951,11 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
         
         if (nrow(patterns) > 0) {
           tryCatch({
+<<<<<<< HEAD
             create_heatmap(patterns, groups)
+=======
+            create_heatmap(patterns, groups, legend, cell_values)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
             cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
             cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
@@ -883,7 +965,11 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
       # Create combined plot
       tryCatch({
+<<<<<<< HEAD
         create_heatmap(summary_output, groups)
+=======
+        create_heatmap(summary_output, groups, legend, cell_values)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
         cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
         cat("[WARN] Could not create combined plot:", e$message, "\n")
@@ -898,7 +984,11 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
     statistical = statistical,
     detailed = detailed,
     top_n = top_n
+<<<<<<< HEAD
   ), groups)
+=======
+  ), groups, legend, cell_values)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
   
   # =====================================================================
   # DISPLAY RESULTS
@@ -918,7 +1008,13 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       correction = correction,
       test_method = test_method,
       min_expected = min_expected,
+<<<<<<< HEAD
       group_tna_info = group_info  # Store original group_tna metadata
+=======
+      group_tna_info = group_info,  # Store original group_tna metadata
+      legend = legend,
+      cell_values = cell_values
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
     ),
     stats = summary_stats
   )
@@ -1028,6 +1124,7 @@ summary.compare_sequences <- function(object, ...) {
 #' Plot Method for compare_sequences Objects
 #'
 #' @param x A compare_sequences object
+<<<<<<< HEAD
 #' @param ... Additional arguments (unused)
 #' @export
 plot.compare_sequences <- function(x, ...) {
@@ -1037,6 +1134,21 @@ plot.compare_sequences <- function(x, ...) {
   create_plots <- function(summary_output, parameters, groups) {
     # Helper function for creating heatmaps
     create_heatmap <- function(patterns, groups) {
+=======
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
+#' @param ... Additional arguments (unused)
+#' @export
+plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
+  if (is.null(legend)) legend <- if (!is.null(x$parameters$legend)) x$parameters$legend else TRUE
+  if (is.null(cell_values)) cell_values <- if (!is.null(x$parameters$cell_values)) x$parameters$cell_values else FALSE
+  cat("Recreating visualizations...\n")
+  
+  # Recreate the plots using the stored data
+  create_plots <- function(summary_output, parameters, groups, legend, cell_values) {
+    # Helper function for creating heatmaps
+    create_heatmap <- function(patterns, groups, legend, cell_values) {
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       if (nrow(patterns) == 0) return()
       
       # Detect frequency column names dynamically
@@ -1094,8 +1206,17 @@ plot.compare_sequences <- function(x, ...) {
       old_par <- par(no.readonly = TRUE)
       on.exit(par(old_par))
       
+<<<<<<< HEAD
       # Set up layout for main plot + legend with better proportions
       layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+=======
+      if (legend) {
+        # Set up layout for main plot + legend with better proportions
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
+      } else {
+        layout(matrix(1))
+      }
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       
       # Main heatmap plot with better margins
       par(mar = c(6, left_margin, 4, 1))
@@ -1110,6 +1231,12 @@ plot.compare_sequences <- function(x, ...) {
       y_coords <- seq_len(nrow(residual_matrix))
       
       # Create heatmap with proper coordinate system
+<<<<<<< HEAD
+=======
+      residual_matrix <- as.matrix(residual_matrix)
+      mode(residual_matrix) <- "numeric"
+      
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       image(x = x_coords, y = y_coords, z = t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
@@ -1130,6 +1257,7 @@ plot.compare_sequences <- function(x, ...) {
       # Add a box around the plot
       box()
       
+<<<<<<< HEAD
       # Legend plot with margins
       par(mar = c(6, 1, 4, 3))
       
@@ -1149,6 +1277,35 @@ plot.compare_sequences <- function(x, ...) {
       
       # Add a box around the legend
       box()
+=======
+      # Add cell values if requested
+      if (cell_values) {
+        for (i in seq_along(y_coords)) {
+          for (j in seq_along(x_coords)) {
+            val <- residual_matrix[i, j]
+            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+          }
+        }
+      }
+      
+      # Legend plot with margins
+      if (legend) {
+        par(mar = c(6, 1, 4, 3))
+        # Create gradient legend
+        legend_y <- seq(0, 1, length.out = 100)
+        legend_matrix <- matrix(legend_y, ncol = 1)
+        image(x = 1, y = legend_y, z = t(legend_matrix), 
+              col = colors, axes = FALSE, xlab = "", ylab = "",
+              main = "")
+        # Add legend labels with better positioning
+        legend_vals <- seq(-max_val, max_val, length.out = 5)
+        legend_positions <- seq(0, 1, length.out = 5)
+        axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
+             las = 2, cex.axis = 0.8)
+        # Add a box around the legend
+        box()
+      }
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
       
       # Reset layout
       layout(1)
@@ -1162,7 +1319,11 @@ plot.compare_sequences <- function(x, ...) {
         
         if (nrow(patterns) > 0) {
           tryCatch({
+<<<<<<< HEAD
             create_heatmap(patterns, groups)
+=======
+            create_heatmap(patterns, groups, legend, cell_values)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
             cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
             cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
@@ -1172,7 +1333,11 @@ plot.compare_sequences <- function(x, ...) {
     } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
       # Create combined plot
       tryCatch({
+<<<<<<< HEAD
         create_heatmap(summary_output, groups)
+=======
+        create_heatmap(summary_output, groups, legend, cell_values)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
         cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
         cat("[WARN] Could not create combined plot:", e$message, "\n")
@@ -1181,7 +1346,11 @@ plot.compare_sequences <- function(x, ...) {
   }
   
   # Create plots
+<<<<<<< HEAD
   create_plots(x$summary, x$parameters, x$parameters$groups)
+=======
+  create_plots(x$summary, x$parameters, x$parameters$groups, legend, cell_values)
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
   cat("Plot recreation complete!\n")
 }
 
@@ -1308,4 +1477,8 @@ compare_sequences_multi <- function(...) {
   args <- list(...)
   result <- do.call(compare_sequences, args)
   return(result)
+<<<<<<< HEAD
 } 
+=======
+} 
+>>>>>>> 114f2e0 (Fix: legend and cell_values parameters now work in compare_sequences and plot method. Also export plot.compare_sequences in NAMESPACE.)
