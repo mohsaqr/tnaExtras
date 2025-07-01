@@ -826,7 +826,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       
       # Calculate dynamic margins based on pattern name lengths
       max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
-      left_margin <- 6  # Fixed small margin to prevent issues
+      left_margin <- min(18, max(8, ceiling(max_pattern_length * 0.6)))  # Dynamic left margin, capped
       
       # Save current graphics parameters
       old_par <- par(no.readonly = TRUE)
@@ -837,8 +837,8 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
 =======
       if (legend) {
-        # Set up layout for main plot + legend with thin legend (approximately 6mm)
-        layout(matrix(c(1, 2), nrow = 1), widths = c(14, 1))  # Very thin legend
+        # Set up layout for main plot + legend with thin but visible legend
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))
       } else {
         layout(matrix(1))
       }
@@ -1200,7 +1200,7 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
       
       # Calculate dynamic margins based on pattern name lengths
       max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
-      left_margin <- 6  # Fixed small margin to prevent issues
+      left_margin <- min(18, max(8, ceiling(max_pattern_length * 0.6)))  # Dynamic left margin, capped
       
       # Save current graphics parameters
       old_par <- par(no.readonly = TRUE)
@@ -1211,8 +1211,8 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
       layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
 =======
       if (legend) {
-        # Set up layout for main plot + legend with thin legend (approximately 6mm)
-        layout(matrix(c(1, 2), nrow = 1), widths = c(14, 1))  # Very thin legend
+        # Set up layout for main plot + legend with thin but visible legend
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))
       } else {
         layout(matrix(1))
       }
