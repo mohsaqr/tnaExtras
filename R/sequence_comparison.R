@@ -34,8 +34,6 @@
 #' @param max_length Maximum subsequence length to analyze (default: 5)
 #' @param top_n Number of top patterns to return and display (default: 10)
 #' @param min_frequency Minimum frequency required to include a pattern (default: 2)
-#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
-#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
 #'
 #' @return A compare_sequences_multi object containing:
 #' \describe{
@@ -60,7 +58,7 @@
 #' }
 #'
 compare_sequences_multi_internal <- function(data, group, min_length = 2, max_length = 5, 
-                                             top_n = 10, min_frequency = 2, legend = TRUE, cell_values = FALSE) {
+                                             top_n = 10, min_frequency = 2, legend = TRUE, cell_values = FALSE, plot = TRUE) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -97,6 +95,10 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
   
   if (!is.numeric(top_n) || top_n < 1) {
     stop("'top_n' must be a positive integer", call. = FALSE)
+  }
+  
+  if (!is.logical(legend) || !is.logical(cell_values) || !is.logical(plot)) {
+    stop("'legend', 'cell_values', and 'plot' must be logical values", call. = FALSE)
   }
   
   # =====================================================================
@@ -315,7 +317,8 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
       top_n = top_n,
       min_frequency = min_frequency,
       legend = legend,
-      cell_values = cell_values
+      cell_values = cell_values,
+      plot = plot
     )
   )
   
@@ -356,8 +359,12 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5).
 #'   Only applies to 2-group statistical analysis
 #' @param min_frequency Numeric, minimum frequency for pattern inclusion in multi-group analysis (default: 2)
-#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
-#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
+#' @param legend Logical, whether to show legend in visualizations (default: TRUE). 
+#'   Currently for future visualization compatibility
+#' @param cell_values Logical, whether to show cell values in visualizations (default: FALSE).
+#'   Currently for future visualization compatibility
+#' @param plot Logical, whether to create plots automatically (default: TRUE).
+#'   When FALSE, no plots are generated during function execution
 #'
 #' @return For 2 groups: A compare_sequences object with statistical measures
 #'         For 3+ groups: A compare_sequences_multi object with discrimination measures
@@ -377,13 +384,19 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' 
 #' # Statistical analysis (only for 2 groups)
 #' result <- compare_sequences(seqdata, "Group", statistical = TRUE)
+#' 
+#' # Control visualization options
+#' result <- compare_sequences(seqdata, "Group", legend = FALSE, cell_values = TRUE)
+#' 
+#' # Disable automatic plotting
+#' result <- compare_sequences(seqdata, "Group", plot = FALSE)
 #' }
 #'
 #' @export
 compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n = 10, 
                              detailed = FALSE, statistical = FALSE, correction = "bonferroni", 
-                             test_method = "auto", min_expected = 5, min_frequency = 2, 
-                             legend = TRUE, cell_values = FALSE) {
+                             test_method = "auto", min_expected = 5, min_frequency = 2,
+                             legend = TRUE, cell_values = FALSE, plot = TRUE) {
   
   # =====================================================================
   # INPUT VALIDATION AND GROUP_TNA SUPPORT
@@ -424,6 +437,10 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   
   if (!is.logical(detailed) || !is.logical(statistical)) {
     stop("'detailed' and 'statistical' must be logical values", call. = FALSE)
+  }
+  
+  if (!is.logical(legend) || !is.logical(cell_values) || !is.logical(plot)) {
+    stop("'legend', 'cell_values', and 'plot' must be logical values", call. = FALSE)
   }
   
   if (!correction %in% p.adjust.methods) {
@@ -477,7 +494,7 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
                                            group = if(is.character(group) && length(group) == 1) group else "Group",
                                            min_length = min_length, max_length = max_length,
                                            top_n = top_n, min_frequency = min_frequency,
-                                           legend = legend, cell_values = cell_values))
+                                           legend = legend, cell_values = cell_values, plot = plot))
   } else if (length(groups) != 2) {
     stop("Group variable must have exactly 2 levels for two-group analysis, found: ", length(groups), call. = FALSE)
   }
@@ -748,177 +765,156 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
   }
   
   # =====================================================================
-  # CREATE VISUALIZATIONS
+  # CREATE VISUALIZATIONS (CONDITIONAL)
   # =====================================================================
   
-  create_plots <- function(analysis_results, summary_output, parameters, groups) {
-    # Helper function for creating heatmaps
-    create_heatmap <- function(patterns, groups, legend, cell_values) {
-      if (nrow(patterns) == 0) return()
-      
-      # Detect frequency column names dynamically
-      freq_cols <- grep("^freq_", names(patterns), value = TRUE)
-      prop_cols <- grep("^prop_", names(patterns), value = TRUE)
-      
-      # Ensure we use exactly top_n patterns (or fewer if not available)
-      n_patterns_to_show <- min(nrow(patterns), parameters$top_n)
-      residual_data <- patterns[1:n_patterns_to_show, , drop = FALSE]
-      
-      # Create residual matrix for heatmap
-      if (parameters$statistical) {
-        # For statistical analysis, use adjusted standardized residuals for better visualization
-        # Calculate better residuals for visualization using dynamic column names
-        if (length(freq_cols) >= 2) {
-          total_A <- sum(residual_data[[freq_cols[1]]])
-          total_B <- sum(residual_data[[freq_cols[2]]])
-          total_overall <- total_A + total_B
-          
-          # Calculate proportions within each group
-          prop_A <- residual_data[[freq_cols[1]]] / total_A
-          prop_B <- residual_data[[freq_cols[2]]] / total_B
-          
-          # Use standardized proportion differences (z-score like)
-          # This shows how much each pattern deviates from equal representation
-          overall_prop <- (residual_data[[freq_cols[1]]] + residual_data[[freq_cols[2]]]) / total_overall
-          
-          # Calculate standard error for proportion difference
-          se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
-          se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
-          
-          # Standardized deviations from expected proportion
-          resid_A <- (prop_A - overall_prop) / se_A
-          resid_B <- (prop_B - overall_prop) / se_B
-          
-          residual_matrix <- cbind(resid_A, resid_B)
+  if (plot) {
+    create_plots <- function(analysis_results, summary_output, parameters, groups) {
+      # Helper function for creating heatmaps
+      create_heatmap <- function(patterns, groups, top_n) {
+        if (nrow(patterns) == 0) return()
+        
+        # Ensure we only take top_n, even if more are passed
+        top_n_val <- min(nrow(patterns), top_n)
+        display_patterns <- patterns[1:top_n_val, ]
+        
+        # Detect frequency column names dynamically
+        freq_cols <- grep("^freq_", names(display_patterns), value = TRUE)
+        prop_cols <- grep("^prop_", names(display_patterns), value = TRUE)
+        
+        # Create residual matrix for heatmap
+        if (parameters$statistical) {
+          # For statistical analysis, use adjusted standardized residuals for better visualization
+          if (length(freq_cols) >= 2) {
+            total_A <- sum(display_patterns[[freq_cols[1]]])
+            total_B <- sum(display_patterns[[freq_cols[2]]])
+            total_overall <- total_A + total_B
+            
+            # Calculate proportions within each group
+            prop_A <- display_patterns[[freq_cols[1]]] / total_A
+            prop_B <- display_patterns[[freq_cols[2]]] / total_B
+            
+            # Use standardized proportion differences (z-score like)
+            overall_prop <- (display_patterns[[freq_cols[1]]] + display_patterns[[freq_cols[2]]]) / total_overall
+            
+            # Calculate standard error for proportion difference
+            se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
+            se_B <- sqrt(overall_prop * (1 - overall_prop) / total_B)
+            
+            # Standardized deviations from expected proportion
+            resid_A <- (prop_A - overall_prop) / se_A
+            resid_B <- (prop_B - overall_prop) / se_B
+            
+            residual_matrix <- cbind(resid_A, resid_B)
+          } else {
+            # Fallback for insufficient data
+            residual_matrix <- matrix(0, nrow = nrow(display_patterns), ncol = 2)
+          }
         } else {
-          # Fallback for insufficient data
-          residual_matrix <- matrix(0, nrow = nrow(residual_data), ncol = 2)
+          # For discrimination analysis, use proportion differences
+          prop_diff <- display_patterns$prop_diff
+          residual_matrix <- cbind(prop_diff, -prop_diff)
         }
-      } else {
-        # For discrimination analysis, use proportion differences
-        prop_diff <- residual_data$prop_diff
-        residual_matrix <- cbind(prop_diff, -prop_diff)
-      }
-      
-      rownames(residual_matrix) <- residual_data$pattern
-      colnames(residual_matrix) <- groups
-      
-      # Calculate dynamic margins based on pattern name lengths
-      max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
-      left_margin <- max(12, ceiling(max_pattern_length * 0.6))  # Dynamic left margin
-      
-      # Save current graphics parameters
-      old_par <- par(no.readonly = TRUE)
-      on.exit(par(old_par))
-      
-      if (legend) {
-        # Set up layout for main plot + legend with better proportions
-        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
-      } else {
-        layout(matrix(1))
-      }
-      
-      # Main heatmap plot with better margins
-      par(mar = c(6, left_margin, 4, 1))
-      
-      # Color palette (reversed: red-white-blue)
-      max_val <- max(abs(residual_matrix), na.rm = TRUE)
-      if (max_val == 0) max_val <- 1  # Avoid division by zero
-      colors <- colorRampPalette(c("red", "white", "blue"))(100)
-      
-      # Create coordinate vectors for proper alignment
-      x_coords <- seq_len(ncol(residual_matrix))
-      y_coords <- seq_len(nrow(residual_matrix))
-      
-      # Create heatmap with proper coordinate system
-      image(x = x_coords, y = y_coords, z = t(residual_matrix), 
-            col = colors,
-            breaks = seq(-max_val, max_val, length.out = 101),
-            xlab = "Groups", ylab = "",
-            axes = FALSE, 
-            main = "")
-      
-      # Add properly aligned axes
-      axis(1, at = x_coords, labels = colnames(residual_matrix), 
-           tick = TRUE, line = 0)
-      axis(2, at = y_coords, labels = rownames(residual_matrix), 
-           las = 2, tick = TRUE, line = 0, cex.axis = 0.8)
-      
-      # Add grid lines for better readability
-      abline(h = y_coords + 0.5, col = "lightgray", lwd = 0.5)
-      abline(v = x_coords + 0.5, col = "lightgray", lwd = 0.5)
-      
-      # Add a box around the plot
-      box()
-      
-      # Add cell values if requested
-      if (cell_values) {
-        for (i in seq_along(y_coords)) {
-          for (j in seq_along(x_coords)) {
-            val <- residual_matrix[i, j]
-            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
+        
+        rownames(residual_matrix) <- display_patterns$pattern
+        colnames(residual_matrix) <- groups
+        
+        # Create the heatmap
+        # Set up layout for main plot + legend
+        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 4))
+        par(mar = c(5, 10, 4, 1))
+        
+        # Color palette (reversed: red-white-blue)
+        max_val <- max(abs(residual_matrix), na.rm = TRUE) * 1.5
+        colors <- colorRampPalette(c("red", "white", "blue"))(100)
+        
+        # Create heatmap
+        image(1:ncol(residual_matrix), 1:nrow(residual_matrix), 
+              t(residual_matrix), 
+              col = colors,
+              breaks = seq(-max_val, max_val, length.out = 101),
+              xlab = "Groups", ylab = "",
+              axes = FALSE)
+        
+        # Add axes
+        axis(1, at = 1:ncol(residual_matrix), labels = colnames(residual_matrix))
+        axis(2, at = 1:nrow(residual_matrix), labels = rownames(residual_matrix), las = 2)
+        
+        # Add gradient legend (if legend = TRUE)
+        if (parameters$legend) {
+          # Reset margins for legend
+          par(mar = c(5, 1, 4, 50))
+          
+          # Create gradient legend
+          legend_y <- seq(0, 1, length.out = 100)
+          legend_matrix <- matrix(legend_y, ncol = 1)
+          
+          image(1, legend_y, t(legend_matrix), 
+                col = colors, axes = FALSE, xlab = "", ylab = "")
+          
+          # Add legend labels
+          legend_vals <- seq(-max_val, max_val, length.out = 5)
+          axis(4, at = seq(0, 1, length.out = 5), labels = sprintf("%.2f", legend_vals), las = 2)
+          
+          # Add "Overrep." and "Underrep." labels (positioned at top and bottom)
+          text(1.5, 0.95, "Overrep.", cex = 0.8, col = "blue")
+          text(1.5, 0.05, "Underrep.", cex = 0.8, col = "red")
+        }
+        
+        # Add cell values if requested
+        if (parameters$cell_values) {
+          for (i in 1:nrow(residual_matrix)) {
+            for (j in 1:ncol(residual_matrix)) {
+              text(j, i, sprintf("%.2f", residual_matrix[i, j]), 
+                   col = ifelse(abs(residual_matrix[i, j]) > max_val/2, "white", "black"),
+                   cex = 0.7)
+            }
           }
         }
-      }
-      
-      # Legend plot with margins
-      if (legend) {
-        par(mar = c(6, 1, 4, 3))
-        # Create gradient legend
-        legend_y <- seq(0, 1, length.out = 100)
-        legend_matrix <- matrix(legend_y, ncol = 1)
-        image(x = 1, y = legend_y, z = t(legend_matrix), 
-              col = colors, axes = FALSE, xlab = "", ylab = "",
-              main = "")
-        # Add legend labels with better positioning
-        legend_vals <- seq(-max_val, max_val, length.out = 5)
-        legend_positions <- seq(0, 1, length.out = 5)
-        axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
-             las = 2, cex.axis = 0.8)
-        # Add a box around the legend
-        box()
-      }
-      
-      # Reset layout
-      layout(1)
-    }
-    
-    cat("\n=== CREATING VISUALIZATIONS ===\n")
-    
-    if (parameters$detailed && is.list(summary_output)) {
-      # Create separate plots for each length
-      for (name in names(summary_output)) {
-        length_num <- gsub("length_", "", name)
-        patterns <- summary_output[[name]]
         
-        if (nrow(patterns) > 0) {
-          tryCatch({
-            create_heatmap(patterns, groups, TRUE, FALSE)
-            cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
-          }, error = function(e) {
-            cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
-          })
-        }
+        # Reset layout
+        layout(1)
       }
-    } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
-      # Create combined plot
-      tryCatch({
-        create_heatmap(summary_output, groups, TRUE, FALSE)
-        cat("[OK] Created combined discriminating patterns plot\n")
-      }, error = function(e) {
-        cat("[WARN] Could not create combined plot:", e$message, "\n")
-      })
+      
+      cat("\n=== CREATING VISUALIZATIONS ===\n")
+      
+      if (parameters$detailed && is.list(summary_output)) {
+        # Create separate plots for each length
+        for (name in names(summary_output)) {
+          length_num <- gsub("length_", "", name)
+          patterns <- summary_output[[name]]
+          
+          if (nrow(patterns) > 0) {
+            tryCatch({
+              create_heatmap(patterns, groups, parameters$top_n)
+              cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
+            }, error = function(e) {
+              cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
+            })
+          }
+        }
+      } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
+        # Create combined plot
+        tryCatch({
+          create_heatmap(summary_output, groups, parameters$top_n)
+          cat("[OK] Created combined discriminating patterns plot\n")
+        }, error = function(e) {
+          cat("[WARN] Could not create combined plot:", e$message, "\n")
+        })
+      }
+      
+      cat("Visualization complete!\n\n")
     }
     
-    cat("Visualization complete!\n\n")
+    # Create plots
+    create_plots(analysis_results, summary_output, list(
+      statistical = statistical,
+      detailed = detailed,
+      top_n = top_n,
+      legend = legend,
+      cell_values = cell_values
+    ), groups)
   }
-  
-  # Create plots
-  create_plots(analysis_results, summary_output, list(
-    statistical = statistical,
-    detailed = detailed,
-    top_n = top_n
-  ), groups)
   
   # =====================================================================
   # DISPLAY RESULTS
@@ -938,9 +934,10 @@ compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n
       correction = correction,
       test_method = test_method,
       min_expected = min_expected,
-      group_tna_info = group_info,  # Store original group_tna metadata
       legend = legend,
-      cell_values = cell_values
+      cell_values = cell_values,
+      plot = plot,
+      group_tna_info = group_info  # Store original group_tna metadata
     ),
     stats = summary_stats
   )
@@ -1050,45 +1047,39 @@ summary.compare_sequences <- function(object, ...) {
 #' Plot Method for compare_sequences Objects
 #'
 #' @param x A compare_sequences object
-#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
-#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
 #' @param ... Additional arguments (unused)
 #' @export
-plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
-  if (is.null(legend)) legend <- if (!is.null(x$parameters$legend)) x$parameters$legend else TRUE
-  if (is.null(cell_values)) cell_values <- if (!is.null(x$parameters$cell_values)) x$parameters$cell_values else FALSE
+plot.compare_sequences <- function(x, ...) {
   cat("Recreating visualizations...\n")
   
   # Recreate the plots using the stored data
-  create_plots <- function(summary_output, parameters, groups, legend, cell_values) {
+  create_plots <- function(summary_output, parameters, groups) {
     # Helper function for creating heatmaps
-    create_heatmap <- function(patterns, groups, legend, cell_values) {
+    create_heatmap <- function(patterns, groups, top_n) {
       if (nrow(patterns) == 0) return()
       
-      # Detect frequency column names dynamically
-      freq_cols <- grep("^freq_", names(patterns), value = TRUE)
-      prop_cols <- grep("^prop_", names(patterns), value = TRUE)
+      # Ensure we only take top_n, even if more are passed
+      top_n_val <- min(nrow(patterns), top_n)
+      display_patterns <- patterns[1:top_n_val, ]
       
-      # Ensure we use exactly top_n patterns (or fewer if not available)
-      n_patterns_to_show <- min(nrow(patterns), parameters$top_n)
-      residual_data <- patterns[1:n_patterns_to_show, , drop = FALSE]
+      # Detect frequency column names dynamically
+      freq_cols <- grep("^freq_", names(display_patterns), value = TRUE)
+      prop_cols <- grep("^prop_", names(display_patterns), value = TRUE)
       
       # Create residual matrix for heatmap
       if (parameters$statistical) {
         # For statistical analysis, use adjusted standardized residuals for better visualization
-        # Calculate better residuals for visualization using dynamic column names
         if (length(freq_cols) >= 2) {
-          total_A <- sum(residual_data[[freq_cols[1]]])
-          total_B <- sum(residual_data[[freq_cols[2]]])
+          total_A <- sum(display_patterns[[freq_cols[1]]])
+          total_B <- sum(display_patterns[[freq_cols[2]]])
           total_overall <- total_A + total_B
           
           # Calculate proportions within each group
-          prop_A <- residual_data[[freq_cols[1]]] / total_A
-          prop_B <- residual_data[[freq_cols[2]]] / total_B
+          prop_A <- display_patterns[[freq_cols[1]]] / total_A
+          prop_B <- display_patterns[[freq_cols[2]]] / total_B
           
           # Use standardized proportion differences (z-score like)
-          # This shows how much each pattern deviates from equal representation
-          overall_prop <- (residual_data[[freq_cols[1]]] + residual_data[[freq_cols[2]]]) / total_overall
+          overall_prop <- (display_patterns[[freq_cols[1]]] + display_patterns[[freq_cols[2]]]) / total_overall
           
           # Calculate standard error for proportion difference
           se_A <- sqrt(overall_prop * (1 - overall_prop) / total_A)
@@ -1101,92 +1092,56 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
           residual_matrix <- cbind(resid_A, resid_B)
         } else {
           # Fallback for insufficient data
-          residual_matrix <- matrix(0, nrow = nrow(residual_data), ncol = 2)
+          residual_matrix <- matrix(0, nrow = nrow(display_patterns), ncol = 2)
         }
       } else {
         # For discrimination analysis, use proportion differences
-        prop_diff <- residual_data$prop_diff
+        prop_diff <- display_patterns$prop_diff
         residual_matrix <- cbind(prop_diff, -prop_diff)
       }
       
-      rownames(residual_matrix) <- residual_data$pattern
+      rownames(residual_matrix) <- display_patterns$pattern
       colnames(residual_matrix) <- groups
       
-      # Calculate dynamic margins based on pattern name lengths
-      max_pattern_length <- max(nchar(rownames(residual_matrix)), na.rm = TRUE)
-      left_margin <- max(12, ceiling(max_pattern_length * 0.6))  # Dynamic left margin
-      
-      # Save current graphics parameters
-      old_par <- par(no.readonly = TRUE)
-      on.exit(par(old_par))
-      
-      if (legend) {
-        # Set up layout for main plot + legend with better proportions
-        layout(matrix(c(1, 2), nrow = 1), widths = c(8, 2))  # Thin but visible legend
-      } else {
-        layout(matrix(1))
-      }
-      
-      # Main heatmap plot with better margins
-      par(mar = c(6, left_margin, 4, 1))
+      # Create the heatmap
+      # Set up layout for main plot + legend
+      layout(matrix(c(1, 2), nrow = 1), widths = c(8, 4))
+      par(mar = c(5, 10, 4, 1))
       
       # Color palette (reversed: red-white-blue)
-      max_val <- max(abs(residual_matrix), na.rm = TRUE)
-      if (max_val == 0) max_val <- 1  # Avoid division by zero
+      max_val <- max(abs(residual_matrix), na.rm = TRUE) * 1.5
       colors <- colorRampPalette(c("red", "white", "blue"))(100)
       
-      # Create coordinate vectors for proper alignment
-      x_coords <- seq_len(ncol(residual_matrix))
-      y_coords <- seq_len(nrow(residual_matrix))
-      
-      # Create heatmap with proper coordinate system
-      image(x = x_coords, y = y_coords, z = t(residual_matrix), 
+      # Create heatmap
+      image(1:ncol(residual_matrix), 1:nrow(residual_matrix), 
+            t(residual_matrix), 
             col = colors,
             breaks = seq(-max_val, max_val, length.out = 101),
             xlab = "Groups", ylab = "",
-            axes = FALSE, 
-            main = "")
+            axes = FALSE)
       
-      # Add properly aligned axes
-      axis(1, at = x_coords, labels = colnames(residual_matrix), 
-           tick = TRUE, line = 0)
-      axis(2, at = y_coords, labels = rownames(residual_matrix), 
-           las = 2, tick = TRUE, line = 0, cex.axis = 0.8)
+      # Add axes
+      axis(1, at = 1:ncol(residual_matrix), labels = colnames(residual_matrix))
+      axis(2, at = 1:nrow(residual_matrix), labels = rownames(residual_matrix), las = 2)
       
-      # Add grid lines for better readability
-      abline(h = y_coords + 0.5, col = "lightgray", lwd = 0.5)
-      abline(v = x_coords + 0.5, col = "lightgray", lwd = 0.5)
+      # Add gradient legend
+      # Reset margins for legend
+      par(mar = c(5, 1, 4, 50))
       
-      # Add a box around the plot
-      box()
+      # Create gradient legend
+      legend_y <- seq(0, 1, length.out = 100)
+      legend_matrix <- matrix(legend_y, ncol = 1)
       
-      # Add cell values if requested
-      if (cell_values) {
-        for (i in seq_along(y_coords)) {
-          for (j in seq_along(x_coords)) {
-            val <- residual_matrix[i, j]
-            text(j, i, labels = formatC(val, digits = 2, format = "f"), cex = 0.7, col = "black")
-          }
-        }
-      }
+      image(1, legend_y, t(legend_matrix), 
+            col = colors, axes = FALSE, xlab = "", ylab = "")
       
-      # Legend plot with margins
-      if (legend) {
-        par(mar = c(6, 1, 4, 3))
-        # Create gradient legend
-        legend_y <- seq(0, 1, length.out = 100)
-        legend_matrix <- matrix(legend_y, ncol = 1)
-        image(x = 1, y = legend_y, z = t(legend_matrix), 
-              col = colors, axes = FALSE, xlab = "", ylab = "",
-              main = "")
-        # Add legend labels with better positioning
-        legend_vals <- seq(-max_val, max_val, length.out = 5)
-        legend_positions <- seq(0, 1, length.out = 5)
-        axis(4, at = legend_positions, labels = sprintf("%.2f", legend_vals), 
-             las = 2, cex.axis = 0.8)
-        # Add a box around the legend
-        box()
-      }
+      # Add legend labels
+      legend_vals <- seq(-max_val, max_val, length.out = 5)
+      axis(4, at = seq(0, 1, length.out = 5), labels = sprintf("%.2f", legend_vals), las = 2)
+      
+      # Add "Overrep." and "Underrep." labels (positioned at top and bottom)
+      text(1.5, 0.95, "Overrep.", cex = 0.8, col = "blue")
+      text(1.5, 0.05, "Underrep.", cex = 0.8, col = "red")
       
       # Reset layout
       layout(1)
@@ -1200,7 +1155,7 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
         
         if (nrow(patterns) > 0) {
           tryCatch({
-            create_heatmap(patterns, groups, legend, cell_values)
+            create_heatmap(patterns, groups, x$parameters$top_n)
             cat(sprintf("[OK] Created %s-length subsequences plot\n", length_num))
           }, error = function(e) {
             cat(sprintf("[WARN] Could not create %s-length plot: %s\n", length_num, e$message))
@@ -1210,7 +1165,7 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
     } else if (is.data.frame(summary_output) && nrow(summary_output) > 0) {
       # Create combined plot
       tryCatch({
-        create_heatmap(summary_output, groups, legend, cell_values)
+        create_heatmap(summary_output, groups, parameters$top_n)
         cat("[OK] Created combined discriminating patterns plot\n")
       }, error = function(e) {
         cat("[WARN] Could not create combined plot:", e$message, "\n")
@@ -1219,7 +1174,7 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
   }
   
   # Create plots
-  create_plots(x$summary, x$parameters, x$parameters$groups, legend, cell_values)
+  create_plots(x$summary, x$parameters, x$parameters$groups)
   cat("Plot recreation complete!\n")
 }
 
