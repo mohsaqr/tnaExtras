@@ -14,10 +14,11 @@
 #'
 #' @param data A data frame or matrix of sequences (rows = sequences, columns = time points)
 #' @param method The distance metric to use: one of \code{"euclidean"} or \code{"hamming"}
-#' @param time_weights Numeric vector of static weights for each time point (length = ncol(data))
-#' @param state_weights Numeric matrix of static weights per state and sequence
-#'   (nrow = nrow(data), ncol = number of unique states in \code{data}); columns must be named
-#'   with the state labels present in \code{data}
+#' @param time_weights Optional numeric vector of static weights for each time point. 
+#'   If not provided, defaults to equal weights (all 1s)
+#' @param state_weights Optional numeric matrix of static weights per state and sequence
+#'   (nrow = nrow(data), ncol = number of unique states). If not provided, defaults to 
+#'   equal weights (all 1s). If provided, columns must be named with state labels
 #' @param decay_rate Optional non-negative numeric. If provided, enables the dynamic
 #'   attention decay model controlling how quickly influence fades forward in time
 #'
@@ -30,25 +31,29 @@
 #'   T2 = c("B", "C", "A"),
 #'   T3 = c("C", "A", "B")
 #' )
+#'
+#' # 1. No weights (equal weights for all)
+#' d1 <- compute_weighted_distance(data, method = "hamming")
+#'
+#' # 2. Only time weights (emphasize later time points)
+#' time_w <- c(0.5, 1, 1.5)
+#' d2 <- compute_weighted_distance(data, method = "hamming", time_weights = time_w)
+#'
+#' # 3. Both time and state weights
 #' state_w <- matrix(c(1,2,1, 2,1,2, 1,1,2), nrow = 3, byrow = TRUE)
 #' colnames(state_w) <- c("A","B","C")
-#' time_w <- c(0.5, 1, 1.5)
-#'
-#' # Static weights
-#' d1 <- compute_weighted_distance(data, method = "hamming",
+#' d3 <- compute_weighted_distance(data, method = "hamming",
 #'                                 time_weights = time_w, state_weights = state_w)
 #'
-#' # Dynamic weights with decay
-#' d2 <- compute_weighted_distance(data, method = "euclidean",
-#'                                 time_weights = time_w, state_weights = state_w,
-#'                                 decay_rate = 0.5)
+#' # 4. Dynamic weights with decay (uses weights as base)
+#' d4 <- compute_weighted_distance(data, method = "euclidean", decay_rate = 0.5)
 #' }
 #'
 #' @export
 compute_weighted_distance <- function(data,
                                       method,
-                                      time_weights,
-                                      state_weights,
+                                      time_weights = NULL,
+                                      state_weights = NULL,
                                       decay_rate = NULL) {
 
   # --- 1. Input Validation and Setup ---
@@ -61,9 +66,16 @@ compute_weighted_distance <- function(data,
   if (!method %in% c("euclidean", "hamming")) {
     stop("This function is designed for weighted 'euclidean' or 'hamming' distances.")
   }
-  if (missing(time_weights) || missing(state_weights)) {
-    stop("'time_weights' and 'state_weights' are required arguments.")
+  # Provide default weights if not specified
+  if (missing(time_weights) || is.null(time_weights)) {
+    time_weights <- rep(1, n_time)
   }
+  if (missing(state_weights) || is.null(state_weights)) {
+    state_weights <- matrix(1, nrow = n_seq, ncol = n_states)
+    colnames(state_weights) <- all_states
+  }
+  
+  # Validate provided weights
   if (length(time_weights) != n_time) {
     stop("'time_weights' length (", length(time_weights), ") must equal number of time points (", n_time, ")")
   }
@@ -164,14 +176,24 @@ compute_weighted_distance <- function(data,
 #'   T2 = c("B","C", NA, "B"),
 #'   T3 = c("C","A","B","C")
 #' )
+#'
+#' # 1. Simple clustering (equal weights)
+#' res1 <- cluster_weighted_sequences(data, k = 2, distance_method = "hamming")
+#'
+#' # 2. Time-weighted clustering
+#' time_w <- c(0.5, 1, 1.5)
+#' res2 <- cluster_weighted_sequences(data, k = 2, distance_method = "hamming",
+#'                                    time_weights = time_w)
+#'
+#' # 3. Full weighted clustering
 #' state_w <- matrix(c(2,1,1.5, 1,2.5,1, 1.5,1,2, 1,1,1), nrow = 4, byrow = TRUE)
 #' colnames(state_w) <- c("A","B","C")
-#' time_w <- c(0.5, 1, 1.5)
-#' res <- cluster_weighted_sequences(data, k = 2, distance_method = "hamming",
-#'                                   clustering_method = "pam",
-#'                                   time_weights = time_w,
-#'                                   state_weights = state_w,
-#'                                   decay_rate = 0.75)
+#' res3 <- cluster_weighted_sequences(data, k = 2, distance_method = "hamming",
+#'                                    time_weights = time_w, state_weights = state_w)
+#'
+#' # 4. Dynamic decay clustering
+#' res4 <- cluster_weighted_sequences(data, k = 2, distance_method = "euclidean",
+#'                                    decay_rate = 0.75)
 #' }
 #'
 #' @export
