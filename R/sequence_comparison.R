@@ -1023,6 +1023,19 @@ plot.compare_sequences <- function(x, legend = NULL, cell_values = NULL, ...) {
   if (is.null(cell_values)) cell_values <- if (!is.null(x$parameters$cell_values)) x$parameters$cell_values else FALSE
   cat("Recreating visualizations...\n")
   
+  # Debug: Check data structure
+  cat("Summary data structure:\n")
+  if (is.data.frame(x$summary)) {
+    cat("  - Data frame with", nrow(x$summary), "rows and", ncol(x$summary), "columns\n")
+    cat("  - Column names:", paste(names(x$summary), collapse = ", "), "\n")
+  } else if (is.list(x$summary)) {
+    cat("  - List with", length(x$summary), "elements\n")
+    cat("  - Element names:", paste(names(x$summary), collapse = ", "), "\n")
+  } else {
+    cat("  - Type:", class(x$summary), "\n")
+  }
+  cat("Groups:", paste(x$parameters$groups, collapse = ", "), "\n")
+  
   # Recreate the plots using the stored data
   create_plots <- function(summary_output, parameters, groups, legend, cell_values) {
     # Helper function for creating heatmaps
