@@ -356,6 +356,14 @@ compare_sequences_multi_internal <- function(data, group, min_length = 2, max_le
 #' @param min_expected Numeric, minimum expected count for automatic test selection (default: 5).
 #'   Only applies to 2-group statistical analysis
 #' @param min_frequency Numeric, minimum frequency for pattern inclusion in multi-group analysis (default: 2)
+#' @param legend Logical, whether to show the color scale legend in plots (default: TRUE)
+#' @param cell_values Logical, whether to display numeric values in each cell in plots (default: FALSE)
+#'
+#' @return For 2 groups: A compare_sequences object with statistical measures
+#'   For 3+ groups: A compare_sequences_multi object
+#' @export
+compare_sequences <- function(data, group, min_length = 2, max_length = 5, top_n = 10, 
+                             detailed = FALSE, statistical = FALSE, correction = "bonferroni", 
                              test_method = "auto", min_expected = 5, min_frequency = 2, 
                              legend = TRUE, cell_values = FALSE) {
   
