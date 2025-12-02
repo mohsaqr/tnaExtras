@@ -1173,6 +1173,9 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
   has_multi <- "**" %in% schema_parts
   n_fixed <- sum(!schema_parts %in% c("*", "**"))
   
+  # Track which sequences contain each pattern
+  instance_seqs <- list()  # pattern -> list of sequence indices
+  
   for (seq_idx in seq_along(type_sequences)) {
     type_info <- type_sequences[[seq_idx]]
     type_seq <- type_info$types
@@ -1195,6 +1198,12 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
           count <- count + 1
           instance_list <- c(instance_list, inst_str)
           seq_had_valid <- TRUE
+          
+          # Track which sequences contain this pattern
+          if (is.null(instance_seqs[[inst_str]])) {
+            instance_seqs[[inst_str]] <- c()
+          }
+          instance_seqs[[inst_str]] <- c(instance_seqs[[inst_str]], seq_idx)
         }
       }
       if (seq_had_valid) {
@@ -1264,48 +1273,54 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
     inst_table <- sort(table(instance_list), decreasing = TRUE)
     n_instances <- length(inst_table)
     
+    # Calculate sequences_containing for each pattern (proper support)
+    seqs_per_pattern <- sapply(names(inst_table), function(p) {
+      length(unique(instance_seqs[[p]]))
+    })
+    
     instances_df <- data.frame(
       pattern = names(inst_table),
       schema = rep(schema, n_instances),
       length = sapply(strsplit(names(inst_table), "->"), length),
       count = as.integer(inst_table),
+      sequences_containing = seqs_per_pattern,
       stringsAsFactors = FALSE
     )
     
-    # Calculate support for each instance
-    instances_df$support <- round(instances_df$count / sum(instances_df$count), 4)
+    # CONSISTENT SUPPORT: proportion of sequences containing this pattern
+    instances_df$support <- round(instances_df$sequences_containing / n_sequences, 4)
     
-    # Calculate support as percentage of total sequences
-    instances_df$seq_support <- round(instances_df$count / n_sequences, 4)
+    # proportion: this pattern's share within all instances of the schema
+    instances_df$proportion <- round(instances_df$count / sum(instances_df$count), 4)
     
     if (test_significance && nrow(instances_df) > 0) {
       # Expected probability for each specific state sequence
-      # Given there are multiple possible states per type
       n_total_patterns <- prod(sapply(node_types, length))
       instances_df$expected_prob <- round(1 / n_total_patterns, 6)
       
-      # Lift: how much more frequent than expected
-      instances_df$lift <- round(instances_df$seq_support / instances_df$expected_prob, 2)
+      # Lift: how much more frequent than expected (based on support)
+      instances_df$lift <- round(instances_df$support / instances_df$expected_prob, 2)
       
-      # Chi-square for each instance
+      # Chi-square for each instance (based on sequences_containing)
       instances_df$chi_square <- sapply(1:nrow(instances_df), function(i) {
-        obs <- c(instances_df$count[i], count - instances_df$count[i])
-        exp <- c(count * instances_df$expected_prob[i], 
-                count * (1 - instances_df$expected_prob[i]))
+        obs <- c(instances_df$sequences_containing[i], 
+                n_sequences - instances_df$sequences_containing[i])
+        exp <- c(n_sequences * instances_df$expected_prob[i], 
+                n_sequences * (1 - instances_df$expected_prob[i]))
         if (all(exp > 0)) round(sum((obs - exp)^2 / exp), 2) else NA
       })
       
       # Z-score
       instances_df$z_score <- sapply(1:nrow(instances_df), function(i) {
-        prop <- instances_df$count[i] / count
+        prop <- instances_df$support[i]
         exp <- instances_df$expected_prob[i]
-        se <- sqrt(exp * (1 - exp) / count)
+        se <- sqrt(exp * (1 - exp) / n_sequences)
         if (se > 0) round((prop - exp) / se, 2) else NA
       })
       
-      # P-values using binomial test
+      # P-values using binomial test (based on sequences_containing)
       instances_df$p_value <- sapply(1:nrow(instances_df), function(i) {
-        stats::binom.test(instances_df$count[i], count,
+        stats::binom.test(instances_df$sequences_containing[i], n_sequences,
                          instances_df$expected_prob[i], 
                          alternative = "greater")$p.value
       })
@@ -1321,8 +1336,9 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
       schema = character(0), 
       length = integer(0),
       count = integer(0),
+      sequences_containing = integer(0),
       support = numeric(0),
-      seq_support = numeric(0),
+      proportion = numeric(0),
       expected_prob = numeric(0),
       lift = numeric(0),
       chi_square = numeric(0),
@@ -1450,17 +1466,23 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
           stringsAsFactors = FALSE
         )
         
-        # Store ALL instances with their counts for this schema
+        # Store ALL instances with their counts and sequence tracking
         # Filter out any patterns containing NA
-        valid_instances <- info$instances[!grepl("NA", info$instances)]
+        valid_idx <- !grepl("NA", info$instances)
+        valid_instances <- info$instances[valid_idx]
+        valid_seqs <- info$seqs[valid_idx]
+        
         if (length(valid_instances) > 0) {
           inst_table <- sort(table(valid_instances), decreasing = TRUE)
           for (inst in names(inst_table)) {
+            # Get sequences containing this specific pattern
+            inst_seqs <- unique(valid_seqs[valid_instances == inst])
             instances_list[[length(instances_list) + 1]] <- list(
               pattern = inst,
               schema = schema,
               length = len,
               count = as.integer(inst_table[inst]),
+              sequences_containing = length(inst_seqs),
               total_schema_count = info$count
             )
           }
@@ -1499,45 +1521,47 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
       schema = sapply(instances_list, `[[`, "schema"),
       length = sapply(instances_list, `[[`, "length"),
       count = sapply(instances_list, `[[`, "count"),
+      sequences_containing = sapply(instances_list, `[[`, "sequences_containing"),
       stringsAsFactors = FALSE
     )
     
     # Calculate total count across all instances
     total_count <- sum(instances_df$count)
     
-    # Support within all instances
-    instances_df$support <- round(instances_df$count / total_count, 4)
+    # CONSISTENT SUPPORT: proportion of sequences containing this pattern
+    instances_df$support <- round(instances_df$sequences_containing / n_sequences, 4)
     
-    # Support as fraction of sequences
-    instances_df$seq_support <- round(instances_df$count / n_sequences, 4)
+    # proportion: this pattern's share within all instances
+    instances_df$proportion <- round(instances_df$count / total_count, 4)
     
     if (test_significance) {
       # Estimate expected probability based on unique patterns possible
       n_unique_patterns <- length(unique(instances_df$pattern))
       instances_df$expected_prob <- round(1 / n_unique_patterns, 6)
       
-      # Lift
+      # Lift (based on support = sequences_containing / n_sequences)
       instances_df$lift <- round(instances_df$support / instances_df$expected_prob, 2)
       
-      # Chi-square
+      # Chi-square (based on sequences_containing)
       instances_df$chi_square <- sapply(1:nrow(instances_df), function(i) {
-        obs <- c(instances_df$count[i], total_count - instances_df$count[i])
-        exp <- c(total_count / n_unique_patterns, 
-                total_count * (1 - 1/n_unique_patterns))
+        obs <- c(instances_df$sequences_containing[i], 
+                n_sequences - instances_df$sequences_containing[i])
+        exp <- c(n_sequences / n_unique_patterns, 
+                n_sequences * (1 - 1/n_unique_patterns))
         if (all(exp > 0)) round(sum((obs - exp)^2 / exp), 2) else NA
       })
       
       # Z-score
       instances_df$z_score <- sapply(1:nrow(instances_df), function(i) {
-        prop <- instances_df$count[i] / total_count
+        prop <- instances_df$support[i]
         exp <- 1 / n_unique_patterns
-        se <- sqrt(exp * (1 - exp) / total_count)
+        se <- sqrt(exp * (1 - exp) / n_sequences)
         if (se > 0) round((prop - exp) / se, 2) else NA
       })
       
-      # P-values
+      # P-values (based on sequences_containing)
       instances_df$p_value <- sapply(1:nrow(instances_df), function(i) {
-        stats::binom.test(instances_df$count[i], total_count,
+        stats::binom.test(instances_df$sequences_containing[i], n_sequences,
                          1 / n_unique_patterns, 
                          alternative = "greater")$p.value
       })
@@ -1552,7 +1576,8 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
   } else {
     instances_df <- data.frame(
       pattern = character(0), schema = character(0), length = integer(0),
-      count = integer(0), support = numeric(0), seq_support = numeric(0),
+      count = integer(0), sequences_containing = integer(0),
+      support = numeric(0), proportion = numeric(0),
       expected_prob = numeric(0), lift = numeric(0), chi_square = numeric(0),
       z_score = numeric(0), p_value = numeric(0), p_adjusted = numeric(0),
       significant = logical(0), stringsAsFactors = FALSE
@@ -1794,15 +1819,16 @@ print.meta_paths <- function(x, ...) {
   # Primary focus: State-level patterns (instances)
   if (!is.null(x$instances) && nrow(x$instances) > 0) {
     cat("TOP STATE-LEVEL PATTERNS (Most Frequent):\n")
-    cat(paste(rep("-", 60), collapse = ""), "\n")
+    cat(paste(rep("-", 70), collapse = ""), "\n")
     
     top_inst <- head(x$instances[order(x$instances$count, decreasing = TRUE), ], 15)
     
-    display_cols <- c("pattern", "schema", "count", "support", "lift", "z_score", "significant")
+    # Show: pattern, schema, count, sequences_containing, support, lift, significant
+    display_cols <- c("pattern", "schema", "count", "sequences_containing", "support", "lift", "significant")
     display_cols <- display_cols[display_cols %in% names(top_inst)]
     
     print(top_inst[, display_cols, drop = FALSE], row.names = FALSE)
-    cat("\n")
+    cat("\n  support = sequences_containing / total_sequences (consistent across all tables)\n\n")
   }
   
   # Secondary: Type-level summary
@@ -1837,8 +1863,8 @@ summary.meta_paths <- function(object, ...) {
     cat("STATE-LEVEL PATTERNS (Full Statistics)\n")
     cat(paste(rep("-", 70), collapse = ""), "\n")
     
-    display_cols <- c("pattern", "schema", "count", "support", "seq_support",
-                     "lift", "chi_square", "z_score", "p_adjusted", "significant")
+    display_cols <- c("pattern", "schema", "count", "sequences_containing", "support",
+                     "proportion", "lift", "chi_square", "z_score", "p_adjusted", "significant")
     display_cols <- display_cols[display_cols %in% names(object$instances)]
     
     display_df <- object$instances[, display_cols, drop = FALSE]
@@ -1853,7 +1879,10 @@ summary.meta_paths <- function(object, ...) {
     if (nrow(object$instances) > 30) {
       cat(sprintf("\n... and %d more patterns\n", nrow(object$instances) - 30))
     }
-    cat("\n")
+    
+    cat("\n  Column definitions:\n")
+    cat("    support = sequences_containing / total_sequences\n")
+    cat("    proportion = count / total_instances_in_schema\n\n")
     
     # Significant patterns summary
     if ("significant" %in% names(object$instances)) {
