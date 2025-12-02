@@ -1047,16 +1047,21 @@ find_meta_paths <- function(data,
          "Please check that node_types contains states that exist in your data.")
   }
   
-  # Convert sequences to type sequences
+  # Convert sequences to type sequences (keeping track of original states)
   type_sequences <- lapply(sequences, function(seq) {
     types <- sapply(seq, function(s) {
       if (s %in% names(state_to_type)) state_to_type[[s]] else NA
     })
-    types[!is.na(types)]
+    # Keep both types and original states for mapped positions
+    valid_idx <- !is.na(types)
+    list(
+      types = types[valid_idx],
+      states = seq[valid_idx]
+    )
   })
   
   # Count sequences with valid type mappings
-  n_with_types <- sum(sapply(type_sequences, length) > 0)
+  n_with_types <- sum(sapply(type_sequences, function(x) length(x$types)) > 0)
   
   if (n_with_types == 0) {
     stop("No states in any sequence match the node_types definitions.\n",
@@ -1066,7 +1071,7 @@ find_meta_paths <- function(data,
   }
   
   # Filter to sequences with minimum length
-  type_sequences_filtered <- type_sequences[sapply(type_sequences, length) >= min_length]
+  type_sequences_filtered <- type_sequences[sapply(type_sequences, function(x) length(x$types)) >= min_length]
   
   if (length(type_sequences_filtered) == 0) {
     warning("No sequences have ", min_length, " or more consecutive mapped states.\n",
@@ -1074,7 +1079,7 @@ find_meta_paths <- function(data,
             "  Try reducing min_length or mapping more states.")
     
     # Use sequences with at least 1 mapped state
-    type_sequences_filtered <- type_sequences[sapply(type_sequences, length) >= 1]
+    type_sequences_filtered <- type_sequences[sapply(type_sequences, function(x) length(x$types)) >= 1]
     
     if (length(type_sequences_filtered) == 0) {
       stop("No valid type sequences after mapping")
@@ -1168,23 +1173,32 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
   has_multi <- "**" %in% schema_parts
   n_fixed <- sum(!schema_parts %in% c("*", "**"))
   
-  for (seq_idx in seq_along(sequences)) {
-    seq <- sequences[[seq_idx]]
-    type_seq <- type_sequences[[seq_idx]]
+  for (seq_idx in seq_along(type_sequences)) {
+    type_info <- type_sequences[[seq_idx]]
+    type_seq <- type_info$types
+    state_seq <- type_info$states
     
     if (length(type_seq) < n_fixed) next
     
     if (has_multi) {
-      matches <- find_meta_path_multi_matches(seq, type_seq, schema_parts, state_to_type)
+      matches <- find_meta_path_multi_matches(state_seq, type_seq, schema_parts, state_to_type)
     } else {
-      matches <- find_meta_path_matches(seq, type_seq, schema_parts)
+      matches <- find_meta_path_matches(state_seq, type_seq, schema_parts)
     }
     
     if (length(matches) > 0) {
-      count <- count + length(matches)
-      seqs_containing <- seqs_containing + 1
+      seq_had_valid <- FALSE
       for (m in matches) {
-        instance_list <- c(instance_list, paste(m, collapse = "->"))
+        inst_str <- paste(m, collapse = "->")
+        # Only add if no NA values
+        if (!grepl("NA", inst_str)) {
+          count <- count + 1
+          instance_list <- c(instance_list, inst_str)
+          seq_had_valid <- TRUE
+        }
+      }
+      if (seq_had_valid) {
+        seqs_containing <- seqs_containing + 1
       }
     }
   }
@@ -1400,14 +1414,15 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
     type_ngrams <- list()
     
     for (seq_idx in seq_along(type_sequences)) {
-      type_seq <- type_sequences[[seq_idx]]
-      seq <- sequences[[seq_idx]]
+      type_info <- type_sequences[[seq_idx]]
+      type_seq <- type_info$types
+      state_seq <- type_info$states
       
       if (length(type_seq) < len) next
       
       for (start in 1:(length(type_seq) - len + 1)) {
         type_gram <- paste(type_seq[start:(start + len - 1)], collapse = "->")
-        state_instance <- paste(seq[start:(start + len - 1)], collapse = "->")
+        state_instance <- paste(state_seq[start:(start + len - 1)], collapse = "->")
         
         if (is.null(type_ngrams[[type_gram]])) {
           type_ngrams[[type_gram]] <- list(count = 0, seqs = c(), instances = c())
@@ -1436,15 +1451,19 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
         )
         
         # Store ALL instances with their counts for this schema
-        inst_table <- sort(table(info$instances), decreasing = TRUE)
-        for (inst in names(inst_table)) {
-          instances_list[[length(instances_list) + 1]] <- list(
-            pattern = inst,
-            schema = schema,
-            length = len,
-            count = as.integer(inst_table[inst]),
-            total_schema_count = info$count
-          )
+        # Filter out any patterns containing NA
+        valid_instances <- info$instances[!grepl("NA", info$instances)]
+        if (length(valid_instances) > 0) {
+          inst_table <- sort(table(valid_instances), decreasing = TRUE)
+          for (inst in names(inst_table)) {
+            instances_list[[length(instances_list) + 1]] <- list(
+              pattern = inst,
+              schema = schema,
+              length = len,
+              count = as.integer(inst_table[inst]),
+              total_schema_count = info$count
+            )
+          }
         }
       }
     }
@@ -1594,7 +1613,8 @@ compute_type_transitions <- function(type_sequences, type_names, n_sequences,
   trans_counts <- matrix(0, nrow = n_types, ncol = n_types,
                         dimnames = list(type_names, type_names))
   
-  for (type_seq in type_sequences) {
+  for (type_info in type_sequences) {
+    type_seq <- if (is.list(type_info)) type_info$types else type_info
     if (length(type_seq) < 2) next
     for (i in 1:(length(type_seq) - 1)) {
       from <- type_seq[i]
