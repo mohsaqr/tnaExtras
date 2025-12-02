@@ -179,24 +179,24 @@ for (len in 2:4) {
 cat("\n--- Type-to-Type Transitions ---\n")
 print(meta$type_transitions)
 
-# Search for specific schema
+# Search for specific schema (using vector format - recommended)
 cat("\n--- Specific Schema: cognitive->social->cognitive ---\n")
 meta_specific <- find_meta_paths(
   seq_data,
   node_types = node_types,
-  schema = "cognitive->social->cognitive",
+  schema = c("cognitive", "social", "cognitive"),  # Vector format
   verbose = FALSE
 )
 print(meta_specific$meta_paths)
 cat("\nTop instances:\n")
 print(head(meta_specific$instances, 10))
 
-# Schema with wildcards
+# Schema with wildcards (using vector format)
 cat("\n--- Schema with Wildcard: cognitive->**->cognitive (cognitive returns) ---\n")
 meta_return <- find_meta_paths(
   seq_data,
   node_types = node_types,
-  schema = "cognitive->**->cognitive",
+  schema = c("cognitive", "**", "cognitive"),  # Vector with wildcard
   verbose = FALSE
 )
 print(meta_return$meta_paths)

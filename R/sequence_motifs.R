@@ -885,7 +885,11 @@ discover_gapped_patterns <- function(sequences, all_states, min_gap, max_gap,
 #'   columns are time points). Can also be a group_tna object.
 #' @param node_types Named list mapping type names to state vectors. Example:
 #'   \code{list(cognitive = c("plan", "monitor"), social = c("discuss", "consensus"))}
-#' @param schema Optional. Specific type schema to search for (e.g., "cognitive->social").
+#' @param schema Optional. Specific type schema to search for. Can be specified as:
+#'   \itemize{
+#'     \item A character vector: \code{c("cognitive", "social", "cognitive")}
+#'     \item A string with arrows: \code{"cognitive->social->cognitive"}
+#'   }
 #'   If NULL (default), auto-discovers all frequent type-paths.
 #'   Supports wildcards: "*" (single type) and "**" (multiple types).
 #' @param min_length Minimum type-path length for auto-discovery (default: 2)
@@ -925,7 +929,14 @@ discover_gapped_patterns <- function(sequences, all_states, min_gap, max_gap,
 #' print(meta)
 #' summary(meta)
 #'
-#' # Search for specific schema
+#' # Search for specific schema (vector format - recommended)
+#' meta_specific <- find_meta_paths(
+#'   seq_data, 
+#'   node_types = node_types,
+#'   schema = c("cognitive", "social", "cognitive")
+#' )
+#'
+#' # Schema as string (also supported)
 #' meta_specific <- find_meta_paths(
 #'   seq_data, 
 #'   node_types = node_types,
@@ -936,7 +947,7 @@ discover_gapped_patterns <- function(sequences, all_states, min_gap, max_gap,
 #' meta_return <- find_meta_paths(
 #'   seq_data,
 #'   node_types = node_types, 
-#'   schema = "cognitive->**->cognitive"
+#'   schema = c("cognitive", "**", "cognitive")
 #' )
 #' }
 #'
@@ -979,6 +990,19 @@ find_meta_paths <- function(data,
     stop("node_types must have named elements")
   }
   
+  # Convert schema to standard format if provided as vector
+  schema_original <- schema
+  if (!is.null(schema)) {
+    if (is.character(schema) && length(schema) > 1) {
+      # Vector format: c("type1", "type2", "type3")
+      schema <- paste(schema, collapse = "->")
+    } else if (is.character(schema) && length(schema) == 1 && !grepl("->", schema)) {
+      # Single type name without arrows - treat as single element
+      schema <- schema
+    }
+    # Otherwise assume it's already in "type1->type2" format
+  }
+  
   # Convert to sequences
   if (verbose) cat("Processing sequences...\n")
   sequences <- apply(data, 1, function(row) {
@@ -988,6 +1012,10 @@ find_meta_paths <- function(data,
   })
   sequences <- sequences[!sapply(sequences, is.null)]
   n_sequences <- length(sequences)
+  
+  if (n_sequences == 0) {
+    stop("No valid sequences found in data")
+  }
   
   all_states <- unique(unlist(sequences))
   
@@ -1004,9 +1032,19 @@ find_meta_paths <- function(data,
     cat("  States mapped:", length(mapped_states), "/", length(all_states), 
         sprintf(" (%.1f%%)\n", coverage * 100))
     if (length(unmapped) > 0) {
-      cat("  Unmapped states:", paste(head(unmapped, 5), collapse = ", "),
-          if (length(unmapped) > 5) "..." else "", "\n")
+      cat("  Unmapped states:", paste(head(unmapped, 10), collapse = ", "),
+          if (length(unmapped) > 10) paste("... (", length(unmapped) - 10, " more)") else "", "\n")
     }
+  }
+  
+  # Check if any states are mapped
+  if (length(mapped_states) == 0) {
+    stop("No states in data match the node_types definitions.\n",
+         "  States in data: ", paste(head(all_states, 10), collapse = ", "),
+         if (length(all_states) > 10) "..." else "", "\n",
+         "  States in node_types: ", paste(head(unlist(node_types), 10), collapse = ", "),
+         if (length(unlist(node_types)) > 10) "..." else "", "\n",
+         "Please check that node_types contains states that exist in your data.")
   }
   
   # Convert sequences to type sequences
@@ -1016,11 +1054,34 @@ find_meta_paths <- function(data,
     })
     types[!is.na(types)]
   })
-  type_sequences <- type_sequences[sapply(type_sequences, length) >= min_length]
   
-  if (length(type_sequences) == 0) {
-    stop("No valid type sequences after mapping")
+  # Count sequences with valid type mappings
+  n_with_types <- sum(sapply(type_sequences, length) > 0)
+  
+  if (n_with_types == 0) {
+    stop("No states in any sequence match the node_types definitions.\n",
+         "  Sample states from data: ", paste(head(all_states, 10), collapse = ", "), "\n",
+         "  States defined in node_types: ", paste(head(unlist(node_types), 10), collapse = ", "), "\n",
+         "Please ensure node_types contains states that exist in your data.")
   }
+  
+  # Filter to sequences with minimum length
+  type_sequences_filtered <- type_sequences[sapply(type_sequences, length) >= min_length]
+  
+  if (length(type_sequences_filtered) == 0) {
+    warning("No sequences have ", min_length, " or more consecutive mapped states.\n",
+            "  Sequences with at least 1 mapped state: ", n_with_types, "\n",
+            "  Try reducing min_length or mapping more states.")
+    
+    # Use sequences with at least 1 mapped state
+    type_sequences_filtered <- type_sequences[sapply(type_sequences, length) >= 1]
+    
+    if (length(type_sequences_filtered) == 0) {
+      stop("No valid type sequences after mapping")
+    }
+  }
+  
+  type_sequences <- type_sequences_filtered
   
   if (!is.null(schema)) {
     # Search for specific schema

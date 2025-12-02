@@ -656,18 +656,25 @@ summary(meta)
 # View type-to-type transitions
 meta$type_transitions
 
-# Search for specific schema
+# Search for specific schema (vector format - recommended)
 meta_specific <- find_meta_paths(
   seq_data,
   node_types = node_types,
-  schema = "cognitive->social->cognitive"
+  schema = c("cognitive", "social", "cognitive")
 )
 
 # Schema with wildcards (cognitive returns via any path)
 meta_return <- find_meta_paths(
   seq_data,
   node_types = node_types,
-  schema = "cognitive->**->cognitive"
+  schema = c("cognitive", "**", "cognitive")
+)
+
+# String format also works
+meta_string <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  schema = "cognitive->social->cognitive"
 )
 ```
 
