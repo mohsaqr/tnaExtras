@@ -76,13 +76,6 @@ S3method(plot,sequence_patterns)
 S3method(print,meta_paths)
 S3method(summary,meta_paths)
 
-# Legacy S3 methods (for backward compatibility)
-S3method(print,sequence_pattern_analysis)
-S3method(summary,sequence_pattern_analysis)
-S3method(plot,sequence_pattern_analysis)
-S3method(print,abstract_patterns)
-S3method(print,gapped_patterns)
-
 # Other S3 methods
 S3method(print,mmm_result)
 S3method(print,mmm_selection_result)

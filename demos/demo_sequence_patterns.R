@@ -1,3 +1,5 @@
+library(tnaExtras)
+
 # ==============================================================================
 # DEMO: Unified Sequence Pattern Analysis
 # ==============================================================================
@@ -111,7 +113,10 @@ print(head(full_seqs$patterns[, c("pattern", "count", "support")], 10))
 cat("\n=== 5. VISUALIZATION ===\n\n")
 
 # Plot top patterns
-plot(results, type = "patterns", top_n = 15)
+# Note: Plotting requires a graphics device. In non-interactive mode, this might not show.
+if (interactive()) {
+  plot(results, type = "patterns", top_n = 15)
+}
 
 # ------------------------------------------------------------------------------
 # 6. HELPER FUNCTIONS

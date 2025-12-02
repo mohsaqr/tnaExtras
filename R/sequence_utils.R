@@ -9,10 +9,10 @@
 # ==============================================================================
 
 # ==============================================================================
-# DATA PREPARATION
+# DATA PREPARATION & VALIDATION
 # ==============================================================================
 
-#' Prepare Sequence Data from Wide Format
+#' Prepare Sequence Input
 #'
 #' Converts wide-format data to a list of sequences, handling group_tna objects
 #' and filtering invalid entries.
@@ -21,9 +21,8 @@
 #' @param verbose Whether to print progress messages
 #' @return List with: sequences, n_sequences, all_states, n_states
 #' @keywords internal
-prepare_sequence_data <- function(data, verbose = TRUE) {
+prepare_sequence_input <- function(data, verbose = TRUE) {
   
-
   # Handle group_tna objects
   if (is_group_tna(data)) {
     if (verbose) cat("Converting group_tna object...\n")
@@ -36,7 +35,6 @@ prepare_sequence_data <- function(data, verbose = TRUE) {
   }
   
   # Ensure data frame
-
   if (!is.data.frame(data) && !is.matrix(data)) {
     stop("data must be a data frame or matrix")
   }
@@ -77,89 +75,84 @@ prepare_sequence_data <- function(data, verbose = TRUE) {
   )
 }
 
+#' Validate Sequence Analysis Parameters
+#' 
+#' Validates common parameters for sequence analysis functions.
+#' 
+#' @param params Named list of parameters to validate
+#' @keywords internal
+validate_sequence_params <- function(params) {
+  
+  if (!is.null(params$min_length) && params$min_length < 1) {
+    stop("min_length must be at least 1")
+  }
+  
+  if (!is.null(params$max_length) && !is.null(params$min_length)) {
+    if (params$max_length < params$min_length) {
+      stop("max_length must be >= min_length")
+    }
+  }
+  
+  if (!is.null(params$min_support)) {
+    if (params$min_support < 0 || params$min_support > 1) {
+      stop("min_support must be between 0 and 1")
+    }
+  }
+  
+  if (!is.null(params$min_count) && params$min_count < 1) {
+    stop("min_count must be at least 1")
+  }
+  
+  if (!is.null(params$correction)) {
+    valid_corrections <- c("bonferroni", "holm", "hochberg", "hommel", "BH", "BY", "fdr", "none")
+    if (!params$correction %in% valid_corrections) {
+      stop("correction must be one of: ", paste(valid_corrections, collapse = ", "))
+    }
+  }
+}
+
 # ==============================================================================
 # FILTERING UTILITIES
 # ==============================================================================
 
-#' Filter Patterns by State
+#' Filter Patterns by Text Matches
 #'
-#' Filter patterns based on starting state, ending state, or containing state.
+#' Generalized filter for patterns based on start/end/contains criteria.
+#' Replaces specific filter_by_state and filter_by_schema functions.
 #'
 #' @param df Data frame with pattern column
-#' @param start_state Filter patterns starting with this state
-#' @param end_state Filter patterns ending with this state
-#' @param contains_state Filter patterns containing this state
-#' @param pattern_col Name of the pattern column (default: "pattern")
+#' @param start Filter patterns starting with this text
+#' @param end Filter patterns ending with this text
+#' @param contains Filter patterns containing this text
+#' @param text_col Name of the column to filter (default: "pattern")
 #' @param separator Pattern separator (default: "->")
 #' @return Filtered data frame
 #' @keywords internal
-filter_by_state <- function(df, start_state = NULL, end_state = NULL, 
-                            contains_state = NULL, pattern_col = "pattern",
-                            separator = "->") {
+filter_patterns_by_text <- function(df, start = NULL, end = NULL, 
+                                    contains = NULL, text_col = "pattern",
+                                    separator = "->") {
   
-  if (nrow(df) == 0) return(df)
+  if (nrow(df) == 0 || !text_col %in% names(df)) return(df)
   
-  patterns <- df[[pattern_col]]
+  patterns <- df[[text_col]]
   keep <- rep(TRUE, nrow(df))
   
-  if (!is.null(start_state)) {
-    # Escape special regex characters and match start
-    start_escaped <- gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", start_state)
-    start_pattern <- paste0("^", start_escaped, "(", separator, "|$)")
+  # Escape special regex characters helper
+  esc <- function(x) gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", x)
+  
+  if (!is.null(start)) {
+    start_pattern <- paste0("^", esc(start), "(", separator, "|$)")
     keep <- keep & grepl(start_pattern, patterns)
   }
   
-  if (!is.null(end_state)) {
-    # Escape special regex characters and match end
-    end_escaped <- gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", end_state)
-    end_pattern <- paste0("(", separator, "|^)", end_escaped, "$")
+  if (!is.null(end)) {
+    end_pattern <- paste0("(", separator, "|^)", esc(end), "$")
     keep <- keep & grepl(end_pattern, patterns)
   }
   
-  if (!is.null(contains_state)) {
-    # Escape special regex characters
-    contains_escaped <- gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", contains_state)
-    contains_pattern <- paste0("(^|", separator, ")", contains_escaped, "(", separator, "|$)")
+  if (!is.null(contains)) {
+    contains_pattern <- paste0("(^|", separator, ")", esc(contains), "(", separator, "|$)")
     keep <- keep & grepl(contains_pattern, patterns)
-  }
-  
-  df[keep, , drop = FALSE]
-}
-
-#' Filter Patterns by Schema (Type-Level)
-#'
-#' Filter patterns based on starting schema, ending schema, or containing schema.
-#'
-#' @param df Data frame with schema column
-#' @param start_schema Filter patterns with schema starting with this type
-#' @param end_schema Filter patterns with schema ending with this type
-#' @param contains_schema Filter patterns with schema containing this type
-#' @return Filtered data frame
-#' @keywords internal
-filter_by_schema <- function(df, start_schema = NULL, end_schema = NULL,
-                             contains_schema = NULL) {
-  
-  if (nrow(df) == 0 || !"schema" %in% names(df)) return(df)
-  
-  schemas <- df$schema
-  keep <- rep(TRUE, nrow(df))
-  
-  if (!is.null(start_schema)) {
-    start_escaped <- gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", start_schema)
-    start_pattern <- paste0("^", start_escaped, "(->|$)")
-    keep <- keep & grepl(start_pattern, schemas)
-  }
-  
-  if (!is.null(end_schema)) {
-    end_escaped <- gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", end_schema)
-    end_pattern <- paste0("(->|^)", end_escaped, "$")
-    keep <- keep & grepl(end_pattern, schemas)
-  }
-  
-  if (!is.null(contains_schema)) {
-    contains_escaped <- gsub("([.+*?^${}()\\[\\]|\\\\])", "\\\\\\1", contains_schema)
-    contains_pattern <- paste0("(^|->)", contains_escaped, "(->|$)")
-    keep <- keep & grepl(contains_pattern, schemas)
   }
   
   df[keep, , drop = FALSE]
@@ -190,8 +183,69 @@ filter_by_thresholds <- function(df, min_support = 0.01, min_count = 2) {
 }
 
 # ==============================================================================
-# SIGNIFICANCE TESTING
+# AGGREGATION & STATISTICS
 # ==============================================================================
+
+#' Aggregate Instances into Statistics Table
+#' 
+#' Converts a list of raw instance strings into a statistical data frame.
+#' Handles counting, support calculation, and significance testing.
+#' 
+#' @param instance_list Vector of instance strings (e.g., "A->B->C")
+#' @param instance_seqs List tracking which sequences contain each instance
+#' @param n_sequences Total number of sequences
+#' @param n_states Total number of states/types (for expected probability)
+#' @param schema Associated schema string (optional)
+#' @param test_significance Whether to compute stats
+#' @param correction Correction method
+#' @param alpha Significance level
+#' @return Data frame with pattern statistics
+#' @keywords internal
+aggregate_instances <- function(instance_list, instance_seqs, n_sequences, n_states,
+                                schema = NULL, test_significance = TRUE,
+                                correction = "fdr", alpha = 0.05) {
+  
+  if (length(instance_list) == 0) {
+    return(create_empty_patterns_df(include_schema = !is.null(schema)))
+  }
+  
+  inst_table <- sort(table(instance_list), decreasing = TRUE)
+  n_inst <- length(inst_table)
+  
+  # Calculate sequences_containing for each pattern
+  seqs_per_pattern <- sapply(names(inst_table), function(p) {
+    if (is.list(instance_seqs)) length(unique(instance_seqs[[p]])) 
+    else length(unique(instance_seqs[instance_list == p]))
+  })
+  
+  df <- data.frame(
+    pattern = names(inst_table),
+    length = sapply(strsplit(names(inst_table), "->"), length),
+    count = as.integer(inst_table),
+    sequences_containing = seqs_per_pattern,
+    stringsAsFactors = FALSE
+  )
+  
+  if (!is.null(schema)) {
+    df$schema <- rep(schema, n_inst)
+  }
+  
+  # Basic metrics
+  df$support <- round(df$sequences_containing / n_sequences, 4)
+  df$proportion <- round(df$count / sum(df$count), 4)
+  
+  # Significance stats
+  if (test_significance) {
+    df <- compute_significance_stats(df, n_sequences, n_states, correction, alpha)
+  } else {
+    # Add empty placeholders
+    cols <- c("expected_prob", "lift", "chi_square", "z_score", "p_value", "p_adjusted", "significant")
+    df[cols] <- NA
+  }
+  
+  # Standardize column order
+  standardize_columns(df, include_schema = !is.null(schema))
+}
 
 #' Compute Significance Statistics for Patterns
 #'
@@ -210,23 +264,17 @@ compute_significance_stats <- function(df, n_sequences, n_states,
                                        correction = "fdr", alpha = 0.05,
                                        pattern_length_col = "length") {
   
-  if (nrow(df) == 0) {
-    # Add empty columns
-    df$expected_prob <- numeric(0)
-    df$lift <- numeric(0)
-    df$chi_square <- numeric(0)
-    df$z_score <- numeric(0)
-    df$p_value <- numeric(0)
-    df$p_adjusted <- numeric(0)
-    df$significant <- logical(0)
-    return(df)
-  }
+  if (nrow(df) == 0) return(df)
   
-  # Calculate expected probability based on pattern length
-  if (pattern_length_col %in% names(df)) {
+  # Calculate expected probability
+  # For state patterns: (1/n_states)^length
+  # For mixed patterns: 1 / n_unique_patterns (heuristic)
+  if (pattern_length_col %in% names(df) && !is.null(n_states)) {
     df$expected_prob <- round((1 / n_states) ^ df[[pattern_length_col]], 6)
   } else {
-    df$expected_prob <- round(1 / n_states, 6)
+    # Fallback for when length isn't available or n_states is undefined
+    n_unique <- nrow(df)
+    df$expected_prob <- round(1 / max(n_unique, 1), 6)
   }
   
   # Ensure support is calculated
@@ -238,21 +286,15 @@ compute_significance_stats <- function(df, n_sequences, n_states,
   df$lift <- round(df$support / df$expected_prob, 2)
   
   # Chi-square test
-  df$chi_square <- sapply(1:nrow(df), function(i) {
+  df$chi_square <- sapply(seq_len(nrow(df)), function(i) {
     if (!"sequences_containing" %in% names(df)) return(NA)
-    observed <- c(df$sequences_containing[i], 
-                  n_sequences - df$sequences_containing[i])
-    expected <- c(n_sequences * df$expected_prob[i], 
-                  n_sequences * (1 - df$expected_prob[i]))
-    if (all(expected > 0)) {
-      round(sum((observed - expected)^2 / expected), 2)
-    } else {
-      NA
-    }
+    obs <- c(df$sequences_containing[i], n_sequences - df$sequences_containing[i])
+    exp <- c(n_sequences * df$expected_prob[i], n_sequences * (1 - df$expected_prob[i]))
+    if (all(exp > 0)) round(sum((obs - exp)^2 / exp), 2) else NA
   })
   
   # Z-score
-  df$z_score <- sapply(1:nrow(df), function(i) {
+  df$z_score <- sapply(seq_len(nrow(df)), function(i) {
     prop <- df$support[i]
     exp_prob <- df$expected_prob[i]
     se <- sqrt(exp_prob * (1 - exp_prob) / n_sequences)
@@ -260,7 +302,7 @@ compute_significance_stats <- function(df, n_sequences, n_states,
   })
   
   # Binomial test p-values
-  df$p_value <- sapply(1:nrow(df), function(i) {
+  df$p_value <- sapply(seq_len(nrow(df)), function(i) {
     if (!"sequences_containing" %in% names(df)) return(NA)
     tryCatch({
       stats::binom.test(df$sequences_containing[i], n_sequences,
@@ -270,16 +312,15 @@ compute_significance_stats <- function(df, n_sequences, n_states,
   
   # Multiple testing correction
   df$p_adjusted <- stats::p.adjust(df$p_value, method = correction)
-  
-  # Significance flag
   df$significant <- !is.na(df$p_adjusted) & df$p_adjusted < alpha
   
   df
 }
 
 # ==============================================================================
-# OUTPUT FORMATTING
+# OUTPUT FORMATTING & DISPLAY
 # ==============================================================================
+
 #' Create Empty Patterns Data Frame
 #'
 #' Creates a data frame with the standard column structure for patterns output.
@@ -308,12 +349,9 @@ create_empty_patterns_df <- function(include_schema = FALSE) {
   
   if (include_schema) {
     df$schema <- character(0)
-    # Reorder to put schema after pattern
-    cols <- c("pattern", "schema", setdiff(names(df), c("pattern", "schema")))
-    df <- df[, cols, drop = FALSE]
   }
   
-  df
+  standardize_columns(df, include_schema)
 }
 
 #' Standardize Output Column Order
@@ -328,30 +366,19 @@ standardize_columns <- function(df, include_schema = FALSE) {
   
   if (nrow(df) == 0) return(df)
   
-  # Standard column order
-  if (include_schema) {
-    preferred_order <- c("pattern", "schema", "length", "count", 
-                         "sequences_containing", "support", "proportion",
-                         "expected_prob", "lift", "chi_square", "z_score",
-                         "p_value", "p_adjusted", "significant")
-  } else {
-    preferred_order <- c("pattern", "length", "count", 
-                         "sequences_containing", "support", "proportion",
-                         "expected_prob", "lift", "chi_square", "z_score",
-                         "p_value", "p_adjusted", "significant")
-  }
+  preferred_order <- c("pattern", "schema", "length", "count", 
+                       "sequences_containing", "support", "proportion",
+                       "expected_prob", "lift", "chi_square", "z_score",
+                       "p_value", "p_adjusted", "significant")
+  
+  if (!include_schema) preferred_order <- setdiff(preferred_order, "schema")
   
   # Get columns that exist in df
   existing_cols <- intersect(preferred_order, names(df))
-  # Add any extra columns at the end
   extra_cols <- setdiff(names(df), preferred_order)
   
   df[, c(existing_cols, extra_cols), drop = FALSE]
 }
-
-# ==============================================================================
-# PRINT/SUMMARY UTILITIES
-# ==============================================================================
 
 #' Print Patterns Summary
 #'
@@ -369,7 +396,6 @@ print_patterns_summary <- function(patterns_df, title = "Patterns", n_show = 15)
     return(invisible(NULL))
   }
   
-  # Select display columns
   display_cols <- c("pattern", "schema", "count", "sequences_containing", 
                     "support", "lift", "significant")
   display_cols <- display_cols[display_cols %in% names(patterns_df)]
@@ -392,4 +418,3 @@ print_patterns_summary <- function(patterns_df, title = "Patterns", n_show = 15)
 }
 
 cat("Sequence utilities loaded.\n")
-

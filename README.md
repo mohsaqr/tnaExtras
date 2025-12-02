@@ -530,9 +530,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Sequence Pattern Exploration (NEW)
 
-### `explore_sequence_patterns()`
+### `explore_patterns()`
 
-Explores frequency and patterns of sequences with statistical significance testing:
+Unified function for exploring frequency, patterns, and structures in sequences with statistical significance testing:
 
 ```r
 library(tnaExtras)
@@ -541,13 +541,14 @@ library(tnaExtras)
 data <- tna::group_regulation
 seq_data <- data[, -1]  # Remove group column
 
-# Explore patterns with significance testing
-results <- explore_sequence_patterns(
-  data = seq_data,
+# 1. Explore n-gram patterns (default)
+# Finds frequent subsequences of length 1-5
+results <- explore_patterns(
+  seq_data,
+  type = "ngrams",
   min_length = 2,
   max_length = 4,
   min_support = 0.05,
-  min_count = 3,
   correction = "fdr"
 )
 
@@ -557,55 +558,38 @@ summary(results)
 # Get significant patterns
 sig_patterns <- significant_patterns(results)
 
-# Get most frequent complete sequences
-top_seqs <- top_sequences(results, top_n = 10)
+# 2. Explore abstract structural patterns
+# Detects returns, repetitions, oscillations, and progressions
+abstract <- explore_patterns(
+  seq_data, 
+  type = "abstract",
+  min_support = 0.05
+)
+print(abstract)
 
-# Plot most frequent sequences
-plot(results, type = "sequences", top_n = 15)
-plot(results, type = "patterns", top_n = 20)
+# 3. Explore full sequence frequencies
+full_seqs <- explore_patterns(
+  seq_data,
+  type = "full",
+  min_support = 0.01
+)
+
+# Visualize top patterns
+plot(results, type = "patterns", top_n = 15)
 ```
 
 ## Sequence Motif Analysis (NEW)
 
-Advanced functions for discovering structural patterns, gap-constrained patterns, and meta-paths in sequential data.
+Advanced functions for discovering gap-constrained patterns and meta-paths in sequential data.
 
-### 1. `detect_abstract_patterns()`
+### 1. `find_patterns()`
 
-Discovers structural patterns including returns (A→*→A), repetitions (A→A), oscillations (A→B→A→B), and progressions (unique chains):
-
-```r
-library(tnaExtras)
-
-# Load regulation data
-data <- tna::group_regulation
-seq_data <- data[, -1]
-
-# Detect all abstract patterns
-abstract <- detect_abstract_patterns(
-  data = seq_data,
-  patterns = "all",        # "returns", "repetitions", "oscillations", "progressions"
-  min_gap = 1,
-  max_gap = 3,
-  min_support = 0.05
-)
-
-print(abstract)
-
-# Access specific pattern types
-head(abstract$returns)       # Return patterns (A->*->A)
-head(abstract$repetitions)   # Consecutive repeats
-head(abstract$oscillations)  # Alternating patterns
-head(abstract$progressions)  # Unique state chains
-```
-
-### 2. `find_gapped_patterns()`
-
-Finds patterns with wildcards/gaps in sequences:
+Finds patterns with wildcards/gaps in sequences. Supports single (`*`) and multiple (`**`) wildcards.
 
 ```r
-# Auto-discover gapped patterns
-gapped <- find_gapped_patterns(
-  data = seq_data,
+# Auto-discover all gapped patterns (A -> * -> B)
+gapped <- find_patterns(
+  seq_data,
   pattern = NULL,          # Auto-discover
   min_gap = 1,
   max_gap = 2,
@@ -615,19 +599,19 @@ gapped <- find_gapped_patterns(
 print(gapped)
 
 # Search for specific pattern with single wildcard
-specific <- find_gapped_patterns(
+specific <- find_patterns(
   seq_data,
-  pattern = "plan-*-consensus"  # plan followed by anything, then consensus
+  pattern = c("plan", "*", "consensus")  # plan followed by anything, then consensus
 )
 
 # Multi-gap pattern (returns)
-multi_gap <- find_gapped_patterns(
+multi_gap <- find_patterns(
   seq_data,
-  pattern = "plan-**-plan"      # plan returns after any number of steps
+  pattern = c("plan", "**", "plan")      # plan returns after any number of steps
 )
 ```
 
-### 3. `find_meta_paths()`
+### 2. `find_meta_paths()`
 
 Discovers meta-paths (type-level patterns) in heterogeneous sequences where states are grouped into node types:
 
@@ -654,7 +638,7 @@ print(meta)
 summary(meta)
 
 # View type-to-type transitions
-meta$type_transitions
+print(meta$type_transitions)
 
 # Search for specific schema (vector format - recommended)
 meta_specific <- find_meta_paths(
@@ -668,13 +652,6 @@ meta_return <- find_meta_paths(
   seq_data,
   node_types = node_types,
   schema = c("cognitive", "**", "cognitive")
-)
-
-# String format also works
-meta_string <- find_meta_paths(
-  seq_data,
-  node_types = node_types,
-  schema = "cognitive->social->cognitive"
 )
 ```
 
@@ -702,15 +679,15 @@ data <- tna::group_regulation
 seq_data <- data[, -1]
 
 # 1. Explore basic patterns
-patterns <- explore_sequence_patterns(seq_data, min_support = 0.05)
+patterns <- explore_patterns(seq_data, min_support = 0.05)
 print(patterns)
 
 # 2. Detect abstract structural patterns
-abstract <- detect_abstract_patterns(seq_data, patterns = "all")
+abstract <- explore_patterns(seq_data, type = "abstract")
 print(abstract)
 
 # 3. Find gap-constrained patterns
-gapped <- find_gapped_patterns(seq_data, max_gap = 2)
+gapped <- find_patterns(seq_data, max_gap = 2)
 print(gapped)
 
 # 4. Discover meta-paths
@@ -726,10 +703,10 @@ summary(meta)
 
 # 5. Extract significant findings
 sig_patterns <- significant_patterns(patterns)
-sig_meta <- meta$meta_paths[meta$meta_paths$significant, ]
+sig_meta <- meta$schemas[meta$schemas$significant, ]
 
 # 6. Visualize
-plot(patterns, type = "sequences", top_n = 15)
+plot(patterns, type = "patterns", top_n = 15)
 ```
 
 ## Citation
@@ -739,4 +716,4 @@ If you use this package in your research, please cite:
 ```
 Mohammed Saqr (2025). tnaExtras: Transition Network Analysis and Sequential Pattern Detection Extras.
 R package version 0.3.0. https://github.com/mohsaqr/tnaExtras
-``` 
+```
