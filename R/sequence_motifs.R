@@ -1245,21 +1245,77 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
     meta_paths_df$significant <- FALSE
   }
   
-  # Create instances data frame with counts (like discover_meta_paths)
+  # Create instances data frame with FULL STATISTICS for each state-level pattern
   if (length(instance_list) > 0) {
     inst_table <- sort(table(instance_list), decreasing = TRUE)
+    n_instances <- length(inst_table)
+    
     instances_df <- data.frame(
-      schema = rep(schema, length(inst_table)),
-      instance = names(inst_table),
+      pattern = names(inst_table),
+      schema = rep(schema, n_instances),
+      length = sapply(strsplit(names(inst_table), "->"), length),
       count = as.integer(inst_table),
       stringsAsFactors = FALSE
     )
+    
+    # Calculate support for each instance
+    instances_df$support <- round(instances_df$count / sum(instances_df$count), 4)
+    
+    # Calculate support as percentage of total sequences
+    instances_df$seq_support <- round(instances_df$count / n_sequences, 4)
+    
+    if (test_significance && nrow(instances_df) > 0) {
+      # Expected probability for each specific state sequence
+      # Given there are multiple possible states per type
+      n_total_patterns <- prod(sapply(node_types, length))
+      instances_df$expected_prob <- round(1 / n_total_patterns, 6)
+      
+      # Lift: how much more frequent than expected
+      instances_df$lift <- round(instances_df$seq_support / instances_df$expected_prob, 2)
+      
+      # Chi-square for each instance
+      instances_df$chi_square <- sapply(1:nrow(instances_df), function(i) {
+        obs <- c(instances_df$count[i], count - instances_df$count[i])
+        exp <- c(count * instances_df$expected_prob[i], 
+                count * (1 - instances_df$expected_prob[i]))
+        if (all(exp > 0)) round(sum((obs - exp)^2 / exp), 2) else NA
+      })
+      
+      # Z-score
+      instances_df$z_score <- sapply(1:nrow(instances_df), function(i) {
+        prop <- instances_df$count[i] / count
+        exp <- instances_df$expected_prob[i]
+        se <- sqrt(exp * (1 - exp) / count)
+        if (se > 0) round((prop - exp) / se, 2) else NA
+      })
+      
+      # P-values using binomial test
+      instances_df$p_value <- sapply(1:nrow(instances_df), function(i) {
+        stats::binom.test(instances_df$count[i], count,
+                         instances_df$expected_prob[i], 
+                         alternative = "greater")$p.value
+      })
+      
+      instances_df$p_adjusted <- stats::p.adjust(instances_df$p_value, method = correction)
+      instances_df$significant <- instances_df$p_adjusted < alpha
+    }
+    
     rownames(instances_df) <- NULL
   } else {
     instances_df <- data.frame(
+      pattern = character(0),
       schema = character(0), 
-      instance = character(0), 
-      count = integer(0), 
+      length = integer(0),
+      count = integer(0),
+      support = numeric(0),
+      seq_support = numeric(0),
+      expected_prob = numeric(0),
+      lift = numeric(0),
+      chi_square = numeric(0),
+      z_score = numeric(0),
+      p_value = numeric(0),
+      p_adjusted = numeric(0),
+      significant = logical(0),
       stringsAsFactors = FALSE
     )
   }
@@ -1379,15 +1435,15 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
           stringsAsFactors = FALSE
         )
         
-        # Store top instances
+        # Store ALL instances with their counts for this schema
         inst_table <- sort(table(info$instances), decreasing = TRUE)
-        top_instances <- head(names(inst_table), 5)
-        for (inst in top_instances) {
-          instances_list[[length(instances_list) + 1]] <- data.frame(
+        for (inst in names(inst_table)) {
+          instances_list[[length(instances_list) + 1]] <- list(
+            pattern = inst,
             schema = schema,
-            instance = inst,
+            length = len,
             count = as.integer(inst_table[inst]),
-            stringsAsFactors = FALSE
+            total_schema_count = info$count
           )
         }
       }
@@ -1405,8 +1461,11 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
         significant = logical(0), stringsAsFactors = FALSE
       ),
       instances = data.frame(
-        schema = character(0), instance = character(0), count = integer(0),
-        stringsAsFactors = FALSE
+        pattern = character(0), schema = character(0), length = integer(0),
+        count = integer(0), support = numeric(0), seq_support = numeric(0),
+        expected_prob = numeric(0), lift = numeric(0), chi_square = numeric(0),
+        z_score = numeric(0), p_value = numeric(0), p_adjusted = numeric(0),
+        significant = logical(0), stringsAsFactors = FALSE
       )
     ))
   }
@@ -1414,9 +1473,72 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
   meta_paths_df <- do.call(rbind, meta_paths_list)
   rownames(meta_paths_df) <- NULL
   
-  instances_df <- if (length(instances_list) > 0) do.call(rbind, instances_list) else
-    data.frame(schema = character(0), instance = character(0), 
-               count = integer(0), stringsAsFactors = FALSE)
+  # Build instances data frame with FULL STATISTICS
+  if (length(instances_list) > 0) {
+    instances_df <- data.frame(
+      pattern = sapply(instances_list, `[[`, "pattern"),
+      schema = sapply(instances_list, `[[`, "schema"),
+      length = sapply(instances_list, `[[`, "length"),
+      count = sapply(instances_list, `[[`, "count"),
+      stringsAsFactors = FALSE
+    )
+    
+    # Calculate total count across all instances
+    total_count <- sum(instances_df$count)
+    
+    # Support within all instances
+    instances_df$support <- round(instances_df$count / total_count, 4)
+    
+    # Support as fraction of sequences
+    instances_df$seq_support <- round(instances_df$count / n_sequences, 4)
+    
+    if (test_significance) {
+      # Estimate expected probability based on unique patterns possible
+      n_unique_patterns <- length(unique(instances_df$pattern))
+      instances_df$expected_prob <- round(1 / n_unique_patterns, 6)
+      
+      # Lift
+      instances_df$lift <- round(instances_df$support / instances_df$expected_prob, 2)
+      
+      # Chi-square
+      instances_df$chi_square <- sapply(1:nrow(instances_df), function(i) {
+        obs <- c(instances_df$count[i], total_count - instances_df$count[i])
+        exp <- c(total_count / n_unique_patterns, 
+                total_count * (1 - 1/n_unique_patterns))
+        if (all(exp > 0)) round(sum((obs - exp)^2 / exp), 2) else NA
+      })
+      
+      # Z-score
+      instances_df$z_score <- sapply(1:nrow(instances_df), function(i) {
+        prop <- instances_df$count[i] / total_count
+        exp <- 1 / n_unique_patterns
+        se <- sqrt(exp * (1 - exp) / total_count)
+        if (se > 0) round((prop - exp) / se, 2) else NA
+      })
+      
+      # P-values
+      instances_df$p_value <- sapply(1:nrow(instances_df), function(i) {
+        stats::binom.test(instances_df$count[i], total_count,
+                         1 / n_unique_patterns, 
+                         alternative = "greater")$p.value
+      })
+      
+      instances_df$p_adjusted <- stats::p.adjust(instances_df$p_value, method = correction)
+      instances_df$significant <- instances_df$p_adjusted < alpha
+    }
+    
+    # Order by count
+    instances_df <- instances_df[order(instances_df$count, decreasing = TRUE), ]
+    rownames(instances_df) <- NULL
+  } else {
+    instances_df <- data.frame(
+      pattern = character(0), schema = character(0), length = integer(0),
+      count = integer(0), support = numeric(0), seq_support = numeric(0),
+      expected_prob = numeric(0), lift = numeric(0), chi_square = numeric(0),
+      z_score = numeric(0), p_value = numeric(0), p_adjusted = numeric(0),
+      significant = logical(0), stringsAsFactors = FALSE
+    )
+  }
   
   if (test_significance && nrow(meta_paths_df) > 0) {
     meta_paths_df$expected_prob <- round((1 / n_types) ^ meta_paths_df$length, 6)
@@ -1643,31 +1765,34 @@ print.meta_paths <- function(x, ...) {
   cat("Data Summary:\n")
   cat("  Sequences:", x$summary$n_sequences, "\n")
   cat("  Type coverage:", sprintf("%.1f%%", x$summary$coverage * 100), "\n")
-  cat("  Meta-paths found:", x$summary$n_meta_paths, "\n")
-  if (!is.na(x$summary$n_significant)) {
-    cat("  Significant:", x$summary$n_significant, "\n")
+  cat("  Type-level schemas found:", x$summary$n_meta_paths, "\n")
+  if (!is.null(x$instances)) {
+    cat("  State-level patterns found:", nrow(x$instances), "\n")
   }
   cat("\n")
   
+  # Primary focus: State-level patterns (instances)
+  if (!is.null(x$instances) && nrow(x$instances) > 0) {
+    cat("TOP STATE-LEVEL PATTERNS (Most Frequent):\n")
+    cat(paste(rep("-", 60), collapse = ""), "\n")
+    
+    top_inst <- head(x$instances[order(x$instances$count, decreasing = TRUE), ], 15)
+    
+    display_cols <- c("pattern", "schema", "count", "support", "lift", "z_score", "significant")
+    display_cols <- display_cols[display_cols %in% names(top_inst)]
+    
+    print(top_inst[, display_cols, drop = FALSE], row.names = FALSE)
+    cat("\n")
+  }
+  
+  # Secondary: Type-level summary
   if (!is.null(x$meta_paths) && nrow(x$meta_paths) > 0) {
-    cat("Top Meta-Paths by Frequency:\n")
-    top <- head(x$meta_paths[order(x$meta_paths$count, decreasing = TRUE), ], 10)
-    
-    # Clean display columns
-    display_cols <- c("schema", "count", "support", "lift", "z_score", "p_adjusted", "significant")
-    display_cols <- display_cols[display_cols %in% names(top)]
-    
-    # Format the table nicely
-    display_df <- top[, display_cols, drop = FALSE]
-    
-    # Remove NA values for display
-    for (col in names(display_df)) {
-      if (is.numeric(display_df[[col]])) {
-        display_df[[col]][is.na(display_df[[col]])] <- NA
-      }
+    cat("Type-Level Schema Summary:\n")
+    top_schema <- head(x$meta_paths[order(x$meta_paths$count, decreasing = TRUE), ], 5)
+    for (i in 1:nrow(top_schema)) {
+      cat(sprintf("  %s: count=%d, support=%.3f\n",
+                 top_schema$schema[i], top_schema$count[i], top_schema$support[i]))
     }
-    
-    print(display_df, row.names = FALSE)
   }
   
   cat("\n*** significant = TRUE indicates statistical significance (FDR corrected)\n")
@@ -1680,63 +1805,63 @@ summary.meta_paths <- function(object, ...) {
   cat("=====================================\n\n")
   
   cat("NODE TYPE DEFINITIONS\n")
-  cat(paste(rep("-", 60), collapse = ""), "\n")
+  cat(paste(rep("-", 70), collapse = ""), "\n")
   for (type_name in names(object$type_mapping)) {
     states <- object$type_mapping[[type_name]]
     cat(sprintf("%s:\n  %s\n", type_name, paste(states, collapse = ", ")))
   }
   cat("\n")
   
-  if (!is.null(object$meta_paths) && nrow(object$meta_paths) > 0) {
-    cat("FULL META-PATH STATISTICS\n")
-    cat(paste(rep("-", 60), collapse = ""), "\n")
+  # PRIMARY: State-level patterns with full statistics
+  if (!is.null(object$instances) && nrow(object$instances) > 0) {
+    cat("STATE-LEVEL PATTERNS (Full Statistics)\n")
+    cat(paste(rep("-", 70), collapse = ""), "\n")
     
-    # Display full table with key statistics
-    display_cols <- c("schema", "length", "count", "support", "instances_per_sequence",
+    display_cols <- c("pattern", "schema", "count", "support", "seq_support",
                      "lift", "chi_square", "z_score", "p_adjusted", "significant")
-    display_cols <- display_cols[display_cols %in% names(object$meta_paths)]
+    display_cols <- display_cols[display_cols %in% names(object$instances)]
     
-    display_df <- object$meta_paths[, display_cols, drop = FALSE]
+    display_df <- object$instances[, display_cols, drop = FALSE]
     
-    # Format p-values for better readability
+    # Format p-values
     if ("p_adjusted" %in% names(display_df)) {
       display_df$p_adjusted <- format(display_df$p_adjusted, scientific = TRUE, digits = 3)
     }
     
-    print(display_df, row.names = FALSE)
+    print(head(display_df, 30), row.names = FALSE)
+    
+    if (nrow(object$instances) > 30) {
+      cat(sprintf("\n... and %d more patterns\n", nrow(object$instances) - 30))
+    }
+    cat("\n")
+    
+    # Significant patterns summary
+    if ("significant" %in% names(object$instances)) {
+      n_sig <- sum(object$instances$significant, na.rm = TRUE)
+      cat(sprintf("Significant state patterns: %d / %d (%.1f%%)\n\n",
+                 n_sig, nrow(object$instances), 100 * n_sig / nrow(object$instances)))
+    }
+  }
+  
+  # SECONDARY: Type-level schema summary
+  if (!is.null(object$meta_paths) && nrow(object$meta_paths) > 0) {
+    cat("TYPE-LEVEL SCHEMA SUMMARY\n")
+    cat(paste(rep("-", 70), collapse = ""), "\n")
+    
+    display_cols <- c("schema", "count", "support", "lift", "significant")
+    display_cols <- display_cols[display_cols %in% names(object$meta_paths)]
+    
+    print(object$meta_paths[, display_cols, drop = FALSE], row.names = FALSE)
     cat("\n")
   }
   
   cat("TYPE TRANSITIONS\n")
-  cat(paste(rep("-", 60), collapse = ""), "\n")
+  cat(paste(rep("-", 70), collapse = ""), "\n")
   if (!is.null(object$type_transitions) && nrow(object$type_transitions) > 0) {
     trans_cols <- c("from_type", "to_type", "count", "probability", "lift", "significant")
     trans_cols <- trans_cols[trans_cols %in% names(object$type_transitions)]
     trans_df <- object$type_transitions[, trans_cols, drop = FALSE]
     print(head(trans_df, 15), row.names = FALSE)
-  }
-  cat("\n")
-  
-  if (!is.null(object$instances) && nrow(object$instances) > 0) {
-    cat("TOP INSTANCES BY SCHEMA\n")
-    cat(paste(rep("-", 60), collapse = ""), "\n")
-    
-    schemas <- unique(object$instances$schema)
-    for (schema in head(schemas, 5)) {
-      cat(sprintf("\n%s:\n", schema))
-      schema_instances <- object$instances[object$instances$schema == schema, ]
-      if ("count" %in% names(schema_instances)) {
-        schema_instances <- schema_instances[order(schema_instances$count, decreasing = TRUE), ]
-      }
-      top_inst <- head(schema_instances, 5)
-      for (j in 1:nrow(top_inst)) {
-        if ("count" %in% names(top_inst)) {
-          cat(sprintf("    %s (count=%d)\n", top_inst$instance[j], top_inst$count[j]))
-        } else {
-          cat(sprintf("    %s\n", top_inst$instance[j]))
-        }
-      }
-    }
   }
   
   invisible(object)
