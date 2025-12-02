@@ -528,6 +528,203 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## Sequence Pattern Exploration (NEW)
+
+### `explore_sequence_patterns()`
+
+Explores frequency and patterns of sequences with statistical significance testing:
+
+```r
+library(tnaExtras)
+
+# Load regulation data from tna package
+data <- tna::group_regulation
+seq_data <- data[, -1]  # Remove group column
+
+# Explore patterns with significance testing
+results <- explore_sequence_patterns(
+  data = seq_data,
+  min_length = 2,
+  max_length = 4,
+  min_support = 0.05,
+  min_count = 3,
+  correction = "fdr"
+)
+
+print(results)
+summary(results)
+
+# Get significant patterns
+sig_patterns <- significant_patterns(results)
+
+# Get most frequent complete sequences
+top_seqs <- top_sequences(results, top_n = 10)
+
+# Plot most frequent sequences
+plot(results, type = "sequences", top_n = 15)
+plot(results, type = "patterns", top_n = 20)
+```
+
+## Sequence Motif Analysis (NEW)
+
+Advanced functions for discovering structural patterns, gap-constrained patterns, and meta-paths in sequential data.
+
+### 1. `detect_abstract_patterns()`
+
+Discovers structural patterns including returns (A→*→A), repetitions (A→A), oscillations (A→B→A→B), and progressions (unique chains):
+
+```r
+library(tnaExtras)
+
+# Load regulation data
+data <- tna::group_regulation
+seq_data <- data[, -1]
+
+# Detect all abstract patterns
+abstract <- detect_abstract_patterns(
+  data = seq_data,
+  patterns = "all",        # "returns", "repetitions", "oscillations", "progressions"
+  min_gap = 1,
+  max_gap = 3,
+  min_support = 0.05
+)
+
+print(abstract)
+
+# Access specific pattern types
+head(abstract$returns)       # Return patterns (A->*->A)
+head(abstract$repetitions)   # Consecutive repeats
+head(abstract$oscillations)  # Alternating patterns
+head(abstract$progressions)  # Unique state chains
+```
+
+### 2. `find_gapped_patterns()`
+
+Finds patterns with wildcards/gaps in sequences:
+
+```r
+# Auto-discover gapped patterns
+gapped <- find_gapped_patterns(
+  data = seq_data,
+  pattern = NULL,          # Auto-discover
+  min_gap = 1,
+  max_gap = 2,
+  min_support = 0.05
+)
+
+print(gapped)
+
+# Search for specific pattern with single wildcard
+specific <- find_gapped_patterns(
+  seq_data,
+  pattern = "plan-*-consensus"  # plan followed by anything, then consensus
+)
+
+# Multi-gap pattern (returns)
+multi_gap <- find_gapped_patterns(
+  seq_data,
+  pattern = "plan-**-plan"      # plan returns after any number of steps
+)
+```
+
+### 3. `find_meta_paths()`
+
+Discovers meta-paths (type-level patterns) in heterogeneous sequences where states are grouped into node types:
+
+```r
+# Define node types for regulation states
+node_types <- list(
+  cognitive = c("plan", "monitor", "adapt"),
+  social = c("discuss", "consensus", "coregulate", "synthesis"),
+  emotional = c("emotion", "cohesion")
+)
+
+# Auto-discover all meta-paths (hybrid discovery)
+meta <- find_meta_paths(
+  data = seq_data,
+  node_types = node_types,
+  schema = NULL,           # Auto-discover all type patterns
+  min_length = 2,
+  max_length = 4,
+  min_support = 0.05,
+  correction = "fdr"       # FDR correction (default)
+)
+
+print(meta)
+summary(meta)
+
+# View type-to-type transitions
+meta$type_transitions
+
+# Search for specific schema
+meta_specific <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  schema = "cognitive->social->cognitive"
+)
+
+# Schema with wildcards (cognitive returns via any path)
+meta_return <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  schema = "cognitive->**->cognitive"
+)
+```
+
+### Statistical Measures for All Functions
+
+All motif analysis functions provide comprehensive statistics:
+
+| Measure | Description |
+|---------|-------------|
+| `count` | Number of pattern occurrences |
+| `support` | Proportion of sequences containing the pattern |
+| `expected_prob` | Expected probability under null hypothesis |
+| `lift` | Observed/expected ratio |
+| `p_value` | Binomial test p-value |
+| `p_adjusted` | FDR-corrected p-value |
+| `significant` | Whether pattern is significant (p < alpha) |
+
+### Complete Motif Analysis Workflow
+
+```r
+library(tnaExtras)
+
+# Load data
+data <- tna::group_regulation
+seq_data <- data[, -1]
+
+# 1. Explore basic patterns
+patterns <- explore_sequence_patterns(seq_data, min_support = 0.05)
+print(patterns)
+
+# 2. Detect abstract structural patterns
+abstract <- detect_abstract_patterns(seq_data, patterns = "all")
+print(abstract)
+
+# 3. Find gap-constrained patterns
+gapped <- find_gapped_patterns(seq_data, max_gap = 2)
+print(gapped)
+
+# 4. Discover meta-paths
+node_types <- list(
+  cognitive = c("plan", "monitor", "adapt"),
+  social = c("discuss", "consensus", "coregulate", "synthesis"),
+  emotional = c("emotion", "cohesion")
+)
+
+meta <- find_meta_paths(seq_data, node_types = node_types)
+print(meta)
+summary(meta)
+
+# 5. Extract significant findings
+sig_patterns <- significant_patterns(patterns)
+sig_meta <- meta$meta_paths[meta$meta_paths$significant, ]
+
+# 6. Visualize
+plot(patterns, type = "sequences", top_n = 15)
+```
+
 ## Citation
 
 If you use this package in your research, please cite:
