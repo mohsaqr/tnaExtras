@@ -1163,15 +1163,16 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
   
   count <- 0
   seqs_containing <- 0
-  instances <- list()
+  instance_list <- c()
   
   has_multi <- "**" %in% schema_parts
+  n_fixed <- sum(!schema_parts %in% c("*", "**"))
   
   for (seq_idx in seq_along(sequences)) {
     seq <- sequences[[seq_idx]]
     type_seq <- type_sequences[[seq_idx]]
     
-    if (length(type_seq) < length(schema_parts[schema_parts != "**"])) next
+    if (length(type_seq) < n_fixed) next
     
     if (has_multi) {
       matches <- find_meta_path_multi_matches(seq, type_seq, schema_parts, state_to_type)
@@ -1183,40 +1184,85 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
       count <- count + length(matches)
       seqs_containing <- seqs_containing + 1
       for (m in matches) {
-        instances[[length(instances) + 1]] <- data.frame(
-          schema = schema,
-          sequence_id = seq_idx,
-          instance = paste(m, collapse = "->"),
-          stringsAsFactors = FALSE
-        )
+        instance_list <- c(instance_list, paste(m, collapse = "->"))
       }
     }
   }
   
   support <- seqs_containing / n_sequences
+  instances_per_seq <- if (seqs_containing > 0) count / seqs_containing else 0
   
+  # Build meta_paths data frame with consistent columns
   meta_paths_df <- data.frame(
     schema = schema,
+    length = n_fixed,
     count = count,
     sequences_containing = seqs_containing,
-    support = support,
+    support = round(support, 4),
+    instances_per_sequence = round(instances_per_seq, 2),
     stringsAsFactors = FALSE
   )
   
-  if (test_significance) {
-    n_fixed <- sum(!schema_parts %in% c("*", "**"))
+  if (test_significance && count > 0) {
     expected_prob <- (1 / n_types) ^ n_fixed
-    meta_paths_df$expected_prob <- expected_prob
-    meta_paths_df$p_value <- stats::binom.test(seqs_containing, n_sequences,
-                                              expected_prob, alternative = "greater")$p.value
-    meta_paths_df$p_adjusted <- meta_paths_df$p_value
-    meta_paths_df$significant <- meta_paths_df$p_adjusted < alpha
-    meta_paths_df$lift <- support / expected_prob
+    
+    # Binomial test
+    p_value <- stats::binom.test(seqs_containing, n_sequences,
+                                 expected_prob, alternative = "greater")$p.value
+    
+    # Lift
+    lift <- support / expected_prob
+    
+    # Chi-square test
+    observed <- c(seqs_containing, n_sequences - seqs_containing)
+    expected <- c(n_sequences * expected_prob, n_sequences * (1 - expected_prob))
+    chi_sq_stat <- sum((observed - expected)^2 / expected)
+    chi_sq_p <- stats::pchisq(chi_sq_stat, df = 1, lower.tail = FALSE)
+    
+    # Z-score for proportion
+    prop <- support
+    se <- sqrt(expected_prob * (1 - expected_prob) / n_sequences)
+    z_score <- if (se > 0) (prop - expected_prob) / se else NA
+    
+    meta_paths_df$expected_prob <- round(expected_prob, 6)
+    meta_paths_df$lift <- round(lift, 2)
+    meta_paths_df$chi_square <- round(chi_sq_stat, 2)
+    meta_paths_df$chi_sq_p <- chi_sq_p
+    meta_paths_df$z_score <- round(z_score, 2)
+    meta_paths_df$p_value <- p_value
+    meta_paths_df$p_adjusted <- p_value  # Single test, no adjustment needed
+    meta_paths_df$significant <- p_value < alpha
+  } else if (test_significance) {
+    # No matches found
+    expected_prob <- (1 / n_types) ^ n_fixed
+    meta_paths_df$expected_prob <- round(expected_prob, 6)
+    meta_paths_df$lift <- 0
+    meta_paths_df$chi_square <- NA
+    meta_paths_df$chi_sq_p <- NA
+    meta_paths_df$z_score <- NA
+    meta_paths_df$p_value <- 1
+    meta_paths_df$p_adjusted <- 1
+    meta_paths_df$significant <- FALSE
   }
   
-  instances_df <- if (length(instances) > 0) do.call(rbind, instances) else
-    data.frame(schema = character(0), sequence_id = integer(0), 
-               instance = character(0), stringsAsFactors = FALSE)
+  # Create instances data frame with counts (like discover_meta_paths)
+  if (length(instance_list) > 0) {
+    inst_table <- sort(table(instance_list), decreasing = TRUE)
+    instances_df <- data.frame(
+      schema = rep(schema, length(inst_table)),
+      instance = names(inst_table),
+      count = as.integer(inst_table),
+      stringsAsFactors = FALSE
+    )
+    rownames(instances_df) <- NULL
+  } else {
+    instances_df <- data.frame(
+      schema = character(0), 
+      instance = character(0), 
+      count = integer(0), 
+      stringsAsFactors = FALSE
+    )
+  }
   
   return(list(meta_paths = meta_paths_df, instances = instances_df))
 }
@@ -1322,12 +1368,14 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
       support <- unique_seqs / n_sequences
       
       if (info$count >= min_count && support >= min_support) {
+        instances_per_seq <- info$count / unique_seqs
         meta_paths_list[[schema]] <- data.frame(
           schema = schema,
           length = len,
           count = info$count,
           sequences_containing = unique_seqs,
-          support = support,
+          support = round(support, 4),
+          instances_per_sequence = round(instances_per_seq, 2),
           stringsAsFactors = FALSE
         )
         
@@ -1351,7 +1399,10 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
       meta_paths = data.frame(
         schema = character(0), length = integer(0), count = integer(0),
         sequences_containing = integer(0), support = numeric(0),
-        stringsAsFactors = FALSE
+        instances_per_sequence = numeric(0), expected_prob = numeric(0),
+        lift = numeric(0), chi_square = numeric(0), chi_sq_p = numeric(0),
+        z_score = numeric(0), p_value = numeric(0), p_adjusted = numeric(0),
+        significant = logical(0), stringsAsFactors = FALSE
       ),
       instances = data.frame(
         schema = character(0), instance = character(0), count = integer(0),
@@ -1368,14 +1419,40 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
                count = integer(0), stringsAsFactors = FALSE)
   
   if (test_significance && nrow(meta_paths_df) > 0) {
-    meta_paths_df$expected_prob <- (1 / n_types) ^ meta_paths_df$length
+    meta_paths_df$expected_prob <- round((1 / n_types) ^ meta_paths_df$length, 6)
+    
+    # Lift
+    meta_paths_df$lift <- round(meta_paths_df$support / meta_paths_df$expected_prob, 2)
+    
+    # Chi-square test
+    meta_paths_df$chi_square <- sapply(1:nrow(meta_paths_df), function(i) {
+      observed <- c(meta_paths_df$sequences_containing[i], 
+                   n_sequences - meta_paths_df$sequences_containing[i])
+      expected <- c(n_sequences * meta_paths_df$expected_prob[i], 
+                   n_sequences * (1 - meta_paths_df$expected_prob[i]))
+      round(sum((observed - expected)^2 / expected), 2)
+    })
+    
+    meta_paths_df$chi_sq_p <- sapply(1:nrow(meta_paths_df), function(i) {
+      stats::pchisq(meta_paths_df$chi_square[i], df = 1, lower.tail = FALSE)
+    })
+    
+    # Z-score for proportion
+    meta_paths_df$z_score <- sapply(1:nrow(meta_paths_df), function(i) {
+      prop <- meta_paths_df$support[i]
+      exp_prob <- meta_paths_df$expected_prob[i]
+      se <- sqrt(exp_prob * (1 - exp_prob) / n_sequences)
+      round((prop - exp_prob) / se, 2)
+    })
+    
+    # Binomial test p-values
     meta_paths_df$p_value <- sapply(1:nrow(meta_paths_df), function(i) {
       stats::binom.test(meta_paths_df$sequences_containing[i], n_sequences,
                        meta_paths_df$expected_prob[i], alternative = "greater")$p.value
     })
+    
     meta_paths_df$p_adjusted <- stats::p.adjust(meta_paths_df$p_value, method = correction)
     meta_paths_df$significant <- meta_paths_df$p_adjusted < alpha
-    meta_paths_df$lift <- meta_paths_df$support / meta_paths_df$expected_prob
   }
   
   meta_paths_df <- meta_paths_df[order(meta_paths_df$count, decreasing = TRUE), ]
@@ -1575,16 +1652,25 @@ print.meta_paths <- function(x, ...) {
   if (!is.null(x$meta_paths) && nrow(x$meta_paths) > 0) {
     cat("Top Meta-Paths by Frequency:\n")
     top <- head(x$meta_paths[order(x$meta_paths$count, decreasing = TRUE), ], 10)
-    for (i in 1:nrow(top)) {
-      sig <- if ("significant" %in% names(top) && top$significant[i]) " ***" else ""
-      cat(sprintf("  %s\n", top$schema[i]))
-      cat(sprintf("    count=%d, support=%.3f, lift=%.1f%s\n",
-                 top$count[i], top$support[i],
-                 if ("lift" %in% names(top)) top$lift[i] else NA, sig))
+    
+    # Clean display columns
+    display_cols <- c("schema", "count", "support", "lift", "z_score", "p_adjusted", "significant")
+    display_cols <- display_cols[display_cols %in% names(top)]
+    
+    # Format the table nicely
+    display_df <- top[, display_cols, drop = FALSE]
+    
+    # Remove NA values for display
+    for (col in names(display_df)) {
+      if (is.numeric(display_df[[col]])) {
+        display_df[[col]][is.na(display_df[[col]])] <- NA
+      }
     }
+    
+    print(display_df, row.names = FALSE)
   }
   
-  cat("\n*** = statistically significant (after FDR correction)\n")
+  cat("\n*** significant = TRUE indicates statistical significance (FDR corrected)\n")
   invisible(x)
 }
 
@@ -1594,39 +1680,61 @@ summary.meta_paths <- function(object, ...) {
   cat("=====================================\n\n")
   
   cat("NODE TYPE DEFINITIONS\n")
-  cat(paste(rep("-", 40), collapse = ""), "\n")
+  cat(paste(rep("-", 60), collapse = ""), "\n")
   for (type_name in names(object$type_mapping)) {
     states <- object$type_mapping[[type_name]]
     cat(sprintf("%s:\n  %s\n", type_name, paste(states, collapse = ", ")))
   }
   cat("\n")
   
-  cat("TYPE TRANSITIONS\n")
-  cat(paste(rep("-", 40), collapse = ""), "\n")
-  if (!is.null(object$type_transitions) && nrow(object$type_transitions) > 0) {
-    top_trans <- head(object$type_transitions, 10)
-    for (i in 1:nrow(top_trans)) {
-      sig <- if ("significant" %in% names(top_trans) && top_trans$significant[i]) " ***" else ""
-      cat(sprintf("  %s -> %s: count=%d, prob=%.3f, lift=%.2f%s\n",
-                 top_trans$from_type[i], top_trans$to_type[i],
-                 top_trans$count[i], top_trans$probability[i],
-                 if ("lift" %in% names(top_trans)) top_trans$lift[i] else NA, sig))
+  if (!is.null(object$meta_paths) && nrow(object$meta_paths) > 0) {
+    cat("FULL META-PATH STATISTICS\n")
+    cat(paste(rep("-", 60), collapse = ""), "\n")
+    
+    # Display full table with key statistics
+    display_cols <- c("schema", "length", "count", "support", "instances_per_sequence",
+                     "lift", "chi_square", "z_score", "p_adjusted", "significant")
+    display_cols <- display_cols[display_cols %in% names(object$meta_paths)]
+    
+    display_df <- object$meta_paths[, display_cols, drop = FALSE]
+    
+    # Format p-values for better readability
+    if ("p_adjusted" %in% names(display_df)) {
+      display_df$p_adjusted <- format(display_df$p_adjusted, scientific = TRUE, digits = 3)
     }
+    
+    print(display_df, row.names = FALSE)
+    cat("\n")
+  }
+  
+  cat("TYPE TRANSITIONS\n")
+  cat(paste(rep("-", 60), collapse = ""), "\n")
+  if (!is.null(object$type_transitions) && nrow(object$type_transitions) > 0) {
+    trans_cols <- c("from_type", "to_type", "count", "probability", "lift", "significant")
+    trans_cols <- trans_cols[trans_cols %in% names(object$type_transitions)]
+    trans_df <- object$type_transitions[, trans_cols, drop = FALSE]
+    print(head(trans_df, 15), row.names = FALSE)
   }
   cat("\n")
   
   if (!is.null(object$instances) && nrow(object$instances) > 0) {
     cat("TOP INSTANCES BY SCHEMA\n")
-    cat(paste(rep("-", 40), collapse = ""), "\n")
+    cat(paste(rep("-", 60), collapse = ""), "\n")
     
     schemas <- unique(object$instances$schema)
     for (schema in head(schemas, 5)) {
-      cat(sprintf("%s:\n", schema))
+      cat(sprintf("\n%s:\n", schema))
       schema_instances <- object$instances[object$instances$schema == schema, ]
-      schema_instances <- schema_instances[order(schema_instances$count, decreasing = TRUE), ]
-      for (j in 1:min(3, nrow(schema_instances))) {
-        cat(sprintf("    %s (count=%d)\n", 
-                   schema_instances$instance[j], schema_instances$count[j]))
+      if ("count" %in% names(schema_instances)) {
+        schema_instances <- schema_instances[order(schema_instances$count, decreasing = TRUE), ]
+      }
+      top_inst <- head(schema_instances, 5)
+      for (j in 1:nrow(top_inst)) {
+        if ("count" %in% names(top_inst)) {
+          cat(sprintf("    %s (count=%d)\n", top_inst$instance[j], top_inst$count[j]))
+        } else {
+          cat(sprintf("    %s\n", top_inst$instance[j]))
+        }
       }
     }
   }
