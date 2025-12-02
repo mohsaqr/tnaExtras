@@ -76,26 +76,26 @@ filtered <- filter_patterns(
 print(filtered)
 
 # ==============================================================================
-# STATE AND TRANSITION ANALYSIS
+# MOST FREQUENT SEQUENCES
+# ==============================================================================
+
+cat("\n\n=== Most Frequent Complete Sequences ===\n")
+
+# Get top 10 most frequent sequences
+top_seqs <- top_sequences(results, top_n = 10)
+print(top_seqs)
+
+# Get significant sequences only
+cat("\n\nSignificant sequences (if any):\n")
+sig_seqs <- top_sequences(results, significant_only = TRUE)
+print(head(sig_seqs, 10))
+
+# ==============================================================================
+# STATE FREQUENCIES
 # ==============================================================================
 
 cat("\n\n=== State Frequencies ===\n")
 print(results$state_frequencies)
-
-cat("\n\n=== Top Transitions ===\n")
-print(head(results$transitions, 15))
-
-# Get transition matrix
-cat("\n\n=== Transition Probability Matrix ===\n")
-trans_matrix <- get_transition_matrix(results, type = "probability")
-print(round(trans_matrix, 3))
-
-# ==============================================================================
-# FULL SEQUENCE ANALYSIS
-# ==============================================================================
-
-cat("\n\n=== Most Common Complete Sequences ===\n")
-print(head(results$full_sequences, 10))
 
 # ==============================================================================
 # VISUALIZATION
@@ -103,17 +103,17 @@ print(head(results$full_sequences, 10))
 
 cat("\n\n=== Visualizations ===\n")
 
-# Plot top patterns
+# Plot top patterns by frequency
 par(mfrow = c(2, 2))
 
-# Top patterns by frequency
+# Top patterns
 plot(results, type = "patterns", top_n = 15)
 
 # Top states
 plot(results, type = "states", top_n = 10)
 
-# Top transitions
-plot(results, type = "transitions", top_n = 10)
+# Most frequent complete sequences
+plot(results, type = "sequences", top_n = 10)
 
 par(mfrow = c(1, 1))
 
@@ -191,4 +191,3 @@ cat("\nAnalysis parameters:\n")
 print(results$parameters[c("min_length", "max_length", "min_support", "correction")])
 
 cat("\n=== Demo Complete ===\n")
-

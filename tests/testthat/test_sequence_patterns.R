@@ -25,7 +25,6 @@ test_that("explore_sequence_patterns works with basic input", {
   expect_true("patterns" %in% names(result))
   expect_true("full_sequences" %in% names(result))
   expect_true("state_frequencies" %in% names(result))
-  expect_true("transitions" %in% names(result))
   expect_true("summary" %in% names(result))
   expect_true("parameters" %in% names(result))
 })
@@ -180,11 +179,11 @@ test_that("filter_patterns works correctly", {
   }
 })
 
-test_that("get_transition_matrix returns correct format", {
+test_that("top_sequences returns correct number of sequences", {
   test_data <- data.frame(
-    T1 = c("A", "A", "B"),
-    T2 = c("B", "B", "A"),
-    T3 = c("A", "A", "B"),
+    T1 = c("A", "A", "A", "B", "B"),
+    T2 = c("B", "B", "B", "A", "A"),
+    T3 = c("A", "A", "A", "B", "B"),
     stringsAsFactors = FALSE
   )
   
@@ -198,19 +197,12 @@ test_that("get_transition_matrix returns correct format", {
     verbose = FALSE
   )
   
-  # Get count matrix
-  count_mat <- get_transition_matrix(result, type = "count")
-  expect_true(is.matrix(count_mat))
-  expect_equal(nrow(count_mat), ncol(count_mat))
+  top5 <- top_sequences(result, top_n = 5)
+  expect_true(nrow(top5) <= 5)
   
-  # Get probability matrix
-  prob_mat <- get_transition_matrix(result, type = "probability")
-  expect_true(is.matrix(prob_mat))
-  
-  # Probabilities should sum to 1 for each row (or 0 if no transitions)
-  row_sums <- rowSums(prob_mat)
-  for (rs in row_sums) {
-    expect_true(rs == 0 || abs(rs - 1) < 0.01)
+  # Should be ordered by count
+  if (nrow(top5) > 1) {
+    expect_true(all(diff(top5$count) <= 0))
   }
 })
 
@@ -287,6 +279,36 @@ test_that("print and summary methods work", {
   expect_output(summary(result))
 })
 
+test_that("plot method works for all types", {
+  test_data <- data.frame(
+    T1 = c("A", "A", "A", "A", "A"),
+    T2 = c("B", "B", "B", "B", "B"),
+    T3 = c("A", "A", "A", "A", "A"),
+    stringsAsFactors = FALSE
+  )
+  
+  result <- explore_sequence_patterns(
+    test_data,
+    min_length = 1,
+    max_length = 2,
+    min_support = 0.1,
+    min_count = 1,
+    verbose = FALSE
+  )
+  
+  # Plot patterns should work
+  expect_silent(plot(result, type = "patterns", top_n = 5))
+  
+  # Plot states should work
+  expect_silent(plot(result, type = "states", top_n = 5))
+  
+  # Plot sequences should work
+  expect_silent(plot(result, type = "sequences", top_n = 5))
+  
+  # Invalid type should error
+  expect_error(plot(result, type = "invalid"))
+})
+
 test_that("explore_sequence_patterns works with real data", {
   skip_if_not_installed("tnaExtras")
   
@@ -310,3 +332,27 @@ test_that("explore_sequence_patterns works with real data", {
   expect_true(result$summary$n_significant_patterns > 0)
 })
 
+test_that("full_sequences are correctly computed", {
+  test_data <- data.frame(
+    T1 = c("A", "A", "A", "B", "B"),
+    T2 = c("B", "B", "B", "A", "A"),
+    stringsAsFactors = FALSE
+  )
+  
+  result <- explore_sequence_patterns(
+    test_data,
+    min_length = 1,
+    max_length = 2,
+    min_support = 0,
+    min_count = 1,
+    test_significance = FALSE,
+    verbose = FALSE
+  )
+  
+  # Should have 2 unique sequences: A-B (3 times) and B-A (2 times)
+  expect_equal(nrow(result$full_sequences), 2)
+  
+  # Most frequent should be A-B
+  expect_equal(result$full_sequences$sequence[1], "A-B")
+  expect_equal(result$full_sequences$count[1], 3)
+})

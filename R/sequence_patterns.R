@@ -33,7 +33,6 @@
 #'   \item{patterns}{Data frame with pattern frequencies, support, and significance}
 #'   \item{full_sequences}{Data frame with complete sequence frequencies}
 #'   \item{state_frequencies}{Data frame with individual state frequencies}
-#'   \item{transitions}{Data frame with transition (bigram) frequencies}
 #'   \item{summary}{List with summary statistics}
 #'   \item{parameters}{List of analysis parameters}
 #'
@@ -57,6 +56,9 @@
 #' 
 #' # View significant patterns only
 #' significant_patterns(results)
+#' 
+#' # Plot most frequent sequences
+#' plot(results, type = "sequences", top_n = 15)
 #' }
 #'
 #' @export
@@ -222,9 +224,6 @@ explore_sequence_patterns <- function(data,
   patterns_df <- compute_pattern_frequencies(all_patterns, sequences, n_valid, 
                                             min_support, min_count, verbose)
   
-  # 4. Transition matrix (bigrams)
-  transitions <- compute_transition_frequencies(sequences, verbose)
-  
   # =====================================================================
   # STATISTICAL SIGNIFICANCE TESTING
   # =====================================================================
@@ -283,7 +282,6 @@ explore_sequence_patterns <- function(data,
     patterns = patterns_df,
     full_sequences = full_sequences,
     state_frequencies = state_frequencies,
-    transitions = transitions,
     summary = summary_stats,
     parameters = list(
       min_length = min_length,
@@ -394,67 +392,6 @@ compute_pattern_frequencies <- function(all_patterns, sequences, n_valid,
   }
   
   return(patterns_df)
-}
-
-#' Compute transition frequencies
-#' @param sequences Vector of sequence strings
-#' @param verbose Whether to print progress
-#' @return Data frame with transition frequencies
-compute_transition_frequencies <- function(sequences, verbose) {
-  
-  all_transitions <- character(0)
-  
-  for (seq in sequences) {
-    parts <- unlist(strsplit(seq, "-"))
-    parts <- parts[!is.na(parts) & parts != ""]
-    
-    if (length(parts) >= 2) {
-      for (i in 1:(length(parts) - 1)) {
-        transition <- paste(parts[i], parts[i + 1], sep = " -> ")
-        all_transitions <- c(all_transitions, transition)
-      }
-    }
-  }
-  
-  if (length(all_transitions) == 0) {
-    return(data.frame(
-      from = character(0),
-      to = character(0),
-      count = integer(0),
-      probability = numeric(0),
-      stringsAsFactors = FALSE
-    ))
-  }
-  
-  # Count transitions
-  trans_counts <- table(all_transitions)
-  
-  # Parse transitions
-  transitions_df <- data.frame(
-    transition = names(trans_counts),
-    count = as.numeric(trans_counts),
-    stringsAsFactors = FALSE
-  )
-  
-  # Split into from/to
-  split_trans <- strsplit(transitions_df$transition, " -> ")
-  transitions_df$from <- sapply(split_trans, "[", 1)
-  transitions_df$to <- sapply(split_trans, "[", 2)
-  
-  # Calculate probabilities (conditioned on 'from' state)
-  from_totals <- tapply(transitions_df$count, transitions_df$from, sum)
-  transitions_df$probability <- transitions_df$count / from_totals[transitions_df$from]
-  
-  # Reorder columns
-  transitions_df <- transitions_df[, c("from", "to", "count", "probability")]
-  transitions_df <- transitions_df[order(transitions_df$count, decreasing = TRUE), ]
-  rownames(transitions_df) <- NULL
-  
-  if (verbose) {
-    cat("  Unique transitions:", nrow(transitions_df), "\n")
-  }
-  
-  return(transitions_df)
 }
 
 #' Compute pattern significance
@@ -655,7 +592,7 @@ print.sequence_pattern_analysis <- function(x, ...) {
   }
   
   cat("\nUse summary() for detailed statistics, or access components directly:\n")
-  cat("  $patterns, $full_sequences, $state_frequencies, $transitions\n")
+  cat("  $patterns, $full_sequences, $state_frequencies\n")
   
   invisible(x)
 }
@@ -695,12 +632,6 @@ summary.sequence_pattern_analysis <- function(object, ...) {
     cat("PATTERNS BY LENGTH\n")
     cat(paste(rep("-", 40), collapse = ""), "\n")
     
-    length_summary <- aggregate(
-      cbind(count = object$patterns$count, support = object$patterns$support) ~ length,
-      data = object$patterns,
-      FUN = function(x) c(n = length(x), mean = mean(x), max = max(x))
-    )
-    
     for (len in unique(object$patterns$length)) {
       len_patterns <- object$patterns[object$patterns$length == len, ]
       n_patterns <- nrow(len_patterns)
@@ -736,15 +667,20 @@ summary.sequence_pattern_analysis <- function(object, ...) {
     cat("\n")
   }
   
-  # Transition summary
-  if (nrow(object$transitions) > 0) {
-    cat("TOP TRANSITIONS\n")
+  # Most frequent full sequences
+  if (nrow(object$full_sequences) > 0) {
+    cat("MOST FREQUENT COMPLETE SEQUENCES (Top 5)\n")
     cat(paste(rep("-", 40), collapse = ""), "\n")
-    top_trans <- head(object$transitions, 10)
-    for (i in 1:nrow(top_trans)) {
-      cat(sprintf("  %-15s -> %-15s count=%4d  prob=%.3f\n",
-                 top_trans$from[i], top_trans$to[i], 
-                 top_trans$count[i], top_trans$probability[i]))
+    top_seqs <- head(object$full_sequences, 5)
+    for (i in 1:nrow(top_seqs)) {
+      # Truncate long sequences for display
+      seq_display <- top_seqs$sequence[i]
+      if (nchar(seq_display) > 50) {
+        seq_display <- paste0(substr(seq_display, 1, 47), "...")
+      }
+      cat(sprintf("  %d. %s\n", i, seq_display))
+      cat(sprintf("     count=%d, support=%.3f, length=%d\n",
+                 top_seqs$count[i], top_seqs$support[i], top_seqs$length[i]))
     }
   }
   
@@ -779,13 +715,20 @@ significant_patterns <- function(x, sort_by = "p_adjusted") {
   return(sig)
 }
 
-#' Plot pattern frequencies
+#' Plot sequence pattern analysis results
+#' 
+#' Visualize patterns, states, or full sequences from the analysis.
+#' 
 #' @param x sequence_pattern_analysis object
-#' @param type Type of plot: "patterns", "states", "transitions"
-#' @param top_n Number of top items to plot
+#' @param type Type of plot: "patterns", "states", or "sequences"
+#' @param top_n Number of top items to plot (default: 20)
+#' @param show_support For sequences plot, show support values (default: TRUE)
+#' @param col Bar color(s). For patterns, can be a single color or will auto-color
+#'   by significance if available.
 #' @param ... Additional arguments passed to barplot
 #' @export
-plot.sequence_pattern_analysis <- function(x, type = "patterns", top_n = 20, ...) {
+plot.sequence_pattern_analysis <- function(x, type = "patterns", top_n = 20, 
+                                          show_support = TRUE, col = NULL, ...) {
   
   old_par <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(old_par))
@@ -798,6 +741,15 @@ plot.sequence_pattern_analysis <- function(x, type = "patterns", top_n = 20, ...
     
     data <- head(x$patterns[order(x$patterns$count, decreasing = TRUE), ], top_n)
     
+    # Set colors
+    if (is.null(col)) {
+      if ("significant" %in% names(data)) {
+        col <- ifelse(data$significant, "steelblue", "gray70")
+      } else {
+        col <- "steelblue"
+      }
+    }
+    
     graphics::par(mar = c(10, 4, 4, 2))
     bp <- graphics::barplot(
       data$count,
@@ -805,11 +757,11 @@ plot.sequence_pattern_analysis <- function(x, type = "patterns", top_n = 20, ...
       las = 2,
       main = paste("Top", min(top_n, nrow(data)), "Patterns by Frequency"),
       ylab = "Count",
-      col = ifelse("significant" %in% names(data) & data$significant, "steelblue", "gray70"),
+      col = col,
       ...
     )
     
-    if ("significant" %in% names(data) && any(data$significant)) {
+    if ("significant" %in% names(data) && any(data$significant) && is.null(list(...)$col)) {
       graphics::legend("topright", 
                       legend = c("Significant", "Not significant"),
                       fill = c("steelblue", "gray70"),
@@ -819,6 +771,8 @@ plot.sequence_pattern_analysis <- function(x, type = "patterns", top_n = 20, ...
   } else if (type == "states") {
     data <- head(x$state_frequencies, top_n)
     
+    if (is.null(col)) col <- "coral"
+    
     graphics::par(mar = c(8, 4, 4, 2))
     graphics::barplot(
       data$count,
@@ -826,32 +780,68 @@ plot.sequence_pattern_analysis <- function(x, type = "patterns", top_n = 20, ...
       las = 2,
       main = paste("Top", min(top_n, nrow(data)), "States by Frequency"),
       ylab = "Count",
-      col = "coral",
+      col = col,
       ...
     )
     
-  } else if (type == "transitions") {
-    if (nrow(x$transitions) == 0) {
-      message("No transitions to plot")
+  } else if (type == "sequences") {
+    if (nrow(x$full_sequences) == 0) {
+      message("No sequences to plot")
       return(invisible(NULL))
     }
     
-    data <- head(x$transitions, top_n)
-    labels <- paste(data$from, "->", data$to)
+    data <- head(x$full_sequences[order(x$full_sequences$count, decreasing = TRUE), ], top_n)
+    
+    # Truncate long sequence labels
+    seq_labels <- sapply(data$sequence, function(s) {
+      if (nchar(s) > 40) {
+        paste0(substr(s, 1, 37), "...")
+      } else {
+        s
+      }
+    })
+    
+    # Set colors based on significance if available
+    if (is.null(col)) {
+      if ("significant" %in% names(data)) {
+        col <- ifelse(data$significant, "darkgreen", "gray70")
+      } else {
+        col <- "darkgreen"
+      }
+    }
     
     graphics::par(mar = c(12, 4, 4, 2))
-    graphics::barplot(
+    bp <- graphics::barplot(
       data$count,
-      names.arg = labels,
+      names.arg = seq_labels,
       las = 2,
-      main = paste("Top", min(top_n, nrow(data)), "Transitions"),
+      main = paste("Top", min(top_n, nrow(data)), "Most Frequent Sequences"),
       ylab = "Count",
-      col = "forestgreen",
+      col = col,
       ...
     )
     
+    # Add support labels on bars if requested
+    if (show_support) {
+      graphics::text(
+        x = bp,
+        y = data$count,
+        labels = sprintf("%.1f%%", data$support * 100),
+        pos = 3,
+        cex = 0.7,
+        col = "black"
+      )
+    }
+    
+    if ("significant" %in% names(data) && any(data$significant) && is.null(list(...)$col)) {
+      graphics::legend("topright", 
+                      legend = c("Significant", "Not significant"),
+                      fill = c("darkgreen", "gray70"),
+                      bty = "n")
+    }
+    
   } else {
-    stop("type must be 'patterns', 'states', or 'transitions'")
+    stop("type must be 'patterns', 'states', or 'sequences'")
   }
   
   invisible(NULL)
@@ -900,41 +890,40 @@ filter_patterns <- function(x, min_support = NULL, min_count = NULL,
   return(patterns)
 }
 
-#' Get transition matrix from analysis
+#' Get most frequent sequences
+#' 
+#' Extract the most frequent complete sequences from the analysis.
+#' 
 #' @param x sequence_pattern_analysis object
-#' @param type "count" for counts or "probability" for probabilities
-#' @return Transition matrix
+#' @param top_n Number of top sequences to return (default: 10)
+#' @param min_support Minimum support threshold (optional)
+#' @param significant_only Return only significant sequences (default: FALSE)
+#' @return Data frame of most frequent sequences
 #' @export
-get_transition_matrix <- function(x, type = "probability") {
+top_sequences <- function(x, top_n = 10, min_support = NULL, significant_only = FALSE) {
   
   if (!inherits(x, "sequence_pattern_analysis")) {
     stop("x must be a sequence_pattern_analysis object")
   }
   
-  if (nrow(x$transitions) == 0) {
-    stop("No transitions in the analysis")
+  seqs <- x$full_sequences
+  
+  if (!is.null(min_support)) {
+    seqs <- seqs[seqs$support >= min_support, ]
   }
   
-  states <- x$parameters$all_states
-  n_states <- length(states)
-  
-  mat <- matrix(0, nrow = n_states, ncol = n_states,
-               dimnames = list(states, states))
-  
-  value_col <- if (type == "count") "count" else "probability"
-  
-  for (i in 1:nrow(x$transitions)) {
-    from <- x$transitions$from[i]
-    to <- x$transitions$to[i]
-    if (from %in% states && to %in% states) {
-      mat[from, to] <- x$transitions[[value_col]][i]
+  if (significant_only) {
+    if (!"significant" %in% names(seqs)) {
+      stop("No significance testing was performed")
     }
+    seqs <- seqs[seqs$significant, ]
   }
   
-  return(mat)
+  seqs <- seqs[order(seqs$count, decreasing = TRUE), ]
+  
+  return(head(seqs, top_n))
 }
 
 cat("Sequence pattern exploration toolkit loaded.\n")
 cat("Main function: explore_sequence_patterns()\n")
-cat("Helper functions: significant_patterns(), filter_patterns(), get_transition_matrix()\n")
-
+cat("Helper functions: significant_patterns(), filter_patterns(), top_sequences()\n")
