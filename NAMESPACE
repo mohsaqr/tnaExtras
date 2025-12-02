@@ -51,22 +51,42 @@ export(summary.compare_sequences_multi)
 export(summary.pattern_analysis)
 export(summary.pattern_analysis_multi)
 export(validate_parameters)
-export(explore_sequence_patterns)
+
+# Main pattern analysis functions (unified)
+export(explore_patterns)
+export(find_patterns)
+export(find_meta_paths)
+
+# Helper functions
 export(significant_patterns)
 export(filter_patterns)
 export(top_sequences)
+
+# Backward compatibility (deprecated)
+export(explore_sequence_patterns)
 export(detect_abstract_patterns)
 export(find_gapped_patterns)
-export(find_meta_paths)
-S3method(print,sequence_pattern_analysis)
-S3method(print,abstract_patterns)
-S3method(print,gapped_patterns)
+
+# S3 methods for sequence_patterns class
+S3method(print,sequence_patterns)
+S3method(summary,sequence_patterns)
+S3method(plot,sequence_patterns)
+
+# S3 methods for meta_paths class
 S3method(print,meta_paths)
 S3method(summary,meta_paths)
+
+# Legacy S3 methods (for backward compatibility)
+S3method(print,sequence_pattern_analysis)
 S3method(summary,sequence_pattern_analysis)
 S3method(plot,sequence_pattern_analysis)
+S3method(print,abstract_patterns)
+S3method(print,gapped_patterns)
+
+# Other S3 methods
 S3method(print,mmm_result)
 S3method(print,mmm_selection_result)
+
 importFrom(cluster,pam)
 importFrom(cluster,silhouette)
 importFrom(parallel,clusterEvalQ)
@@ -117,4 +137,4 @@ importFrom(grDevices,colorRampPalette)
 importFrom(grDevices,rainbow)
 importFrom(utils,combn)
 importFrom(utils,head)
-importFrom(utils,write.csv) 
+importFrom(utils,write.csv)

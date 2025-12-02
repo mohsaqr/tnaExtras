@@ -1,193 +1,138 @@
 # ==============================================================================
-# DEMO: Sequence Pattern Exploration
+# DEMO: Unified Sequence Pattern Analysis
 # ==============================================================================
-# 
-# This demo shows how to use explore_sequence_patterns() to discover frequent
-# patterns, compute support frequencies, and test statistical significance
-# in sequence data.
-#
+# This demo shows how to use the unified explore_patterns() function
+# for n-gram extraction, abstract patterns, and full sequence analysis.
 # ==============================================================================
-
-# Load the package
-library(tnaExtras)
 
 # Load sample data
-data(seqdata)
+load("data/seqdata.rda")
+seq_data <- seqdata[, -1]  # Remove group column if present
 
-# View the data structure
-cat("=== Sample Data Overview ===\n")
-cat("Rows (sequences):", nrow(seqdata), "\n")
-cat("Columns (time points + group):", ncol(seqdata), "\n")
-cat("\nColumn names:", paste(names(seqdata), collapse = ", "), "\n")
-cat("\nFirst 5 rows:\n")
-print(head(seqdata, 5))
+cat("======================================================\n")
+cat("SEQUENCE PATTERN ANALYSIS DEMO\n")
+cat("======================================================\n\n")
 
-# ==============================================================================
-# BASIC USAGE
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# 1. N-GRAM ANALYSIS
+# ------------------------------------------------------------------------------
+cat("=== 1. N-GRAM ANALYSIS ===\n\n")
 
-cat("\n\n=== Basic Pattern Exploration ===\n")
-
-# Remove group column for single-group analysis
-sequence_data <- seqdata[, -1]  # Remove Group column
-
-# Run pattern exploration
-results <- explore_sequence_patterns(
-  data = sequence_data,
-  min_length = 1,
+# Basic n-gram extraction
+results <- explore_patterns(
+  seq_data,
+  type = "ngrams",
+  min_length = 2,
   max_length = 4,
-  min_support = 0.05,  # Patterns appearing in at least 5% of sequences
-  min_count = 3,       # Patterns appearing at least 3 times
-  verbose = TRUE
+  min_support = 0.05,
+  correction = "fdr"
 )
 
-# View results
 print(results)
 
-# ==============================================================================
-# DETAILED SUMMARY
-# ==============================================================================
+# Get significant patterns
+sig <- significant_patterns(results)
+cat("\nSignificant patterns:\n")
+print(head(sig, 10))
 
-cat("\n\n=== Detailed Summary ===\n")
-summary(results)
+# ------------------------------------------------------------------------------
+# 2. FILTERING BY STATE
+# ------------------------------------------------------------------------------
+cat("\n=== 2. FILTERING BY STATE ===\n\n")
 
-# ==============================================================================
-# WORKING WITH PATTERNS
-# ==============================================================================
-
-cat("\n\n=== Working with Patterns ===\n")
-
-# View all patterns
-cat("All patterns (first 20):\n")
-print(head(results$patterns, 20))
-
-# Get significant patterns only
-cat("\n\nSignificant patterns:\n")
-sig_patterns <- significant_patterns(results)
-print(sig_patterns)
-
-# Filter patterns by criteria
-cat("\n\nFiltering patterns (length=2, min_support=0.1):\n")
-filtered <- filter_patterns(
-  results, 
-  min_support = 0.1, 
-  pattern_length = 2
+# Patterns starting with "plan"
+plan_patterns <- explore_patterns(
+  seq_data,
+  type = "ngrams",
+  max_length = 3,
+  start_state = "plan",
+  verbose = FALSE
 )
-print(filtered)
+cat("Patterns starting with 'plan':", nrow(plan_patterns$patterns), "\n")
+print(head(plan_patterns$patterns[, c("pattern", "count", "support", "significant")], 10))
 
-# ==============================================================================
-# MOST FREQUENT SEQUENCES
-# ==============================================================================
+# Patterns ending with "consensus"
+consensus_patterns <- explore_patterns(
+  seq_data,
+  type = "ngrams",
+  max_length = 3,
+  end_state = "consensus",
+  verbose = FALSE
+)
+cat("\nPatterns ending with 'consensus':", nrow(consensus_patterns$patterns), "\n")
+print(head(consensus_patterns$patterns[, c("pattern", "count", "support")], 10))
 
-cat("\n\n=== Most Frequent Complete Sequences ===\n")
+# Patterns containing "emotion"
+emotion_patterns <- explore_patterns(
+  seq_data,
+  type = "ngrams",
+  max_length = 3,
+  contains_state = "emotion",
+  verbose = FALSE
+)
+cat("\nPatterns containing 'emotion':", nrow(emotion_patterns$patterns), "\n")
+print(head(emotion_patterns$patterns[, c("pattern", "count", "support")], 10))
 
-# Get top 10 most frequent sequences
-top_seqs <- top_sequences(results, top_n = 10)
-print(top_seqs)
+# ------------------------------------------------------------------------------
+# 3. ABSTRACT PATTERN DETECTION
+# ------------------------------------------------------------------------------
+cat("\n=== 3. ABSTRACT PATTERN DETECTION ===\n\n")
 
-# Get significant sequences only
-cat("\n\nSignificant sequences (if any):\n")
-sig_seqs <- top_sequences(results, significant_only = TRUE)
-print(head(sig_seqs, 10))
+abstract <- explore_patterns(
+  seq_data,
+  type = "abstract",
+  min_gap = 1,
+  max_gap = 3,
+  min_support = 0.05
+)
 
-# ==============================================================================
-# STATE FREQUENCIES
-# ==============================================================================
+cat("Abstract patterns found:", nrow(abstract$patterns), "\n\n")
+print(head(abstract$patterns, 15))
 
-cat("\n\n=== State Frequencies ===\n")
-print(results$state_frequencies)
+# ------------------------------------------------------------------------------
+# 4. FULL SEQUENCE ANALYSIS
+# ------------------------------------------------------------------------------
+cat("\n=== 4. FULL SEQUENCE ANALYSIS ===\n\n")
 
-# ==============================================================================
-# VISUALIZATION
-# ==============================================================================
+full_seqs <- explore_patterns(
+  seq_data,
+  type = "full",
+  min_support = 0.01,
+  verbose = FALSE
+)
 
-cat("\n\n=== Visualizations ===\n")
+cat("Unique sequences:", nrow(full_seqs$patterns), "\n\n")
+cat("Top 10 most frequent sequences:\n")
+print(head(full_seqs$patterns[, c("pattern", "count", "support")], 10))
 
-# Plot top patterns by frequency
-par(mfrow = c(2, 2))
+# ------------------------------------------------------------------------------
+# 5. VISUALIZATION
+# ------------------------------------------------------------------------------
+cat("\n=== 5. VISUALIZATION ===\n\n")
 
-# Top patterns
+# Plot top patterns
 plot(results, type = "patterns", top_n = 15)
 
-# Top states
-plot(results, type = "states", top_n = 10)
+# ------------------------------------------------------------------------------
+# 6. HELPER FUNCTIONS
+# ------------------------------------------------------------------------------
+cat("\n=== 6. HELPER FUNCTIONS ===\n\n")
 
-# Most frequent complete sequences
-plot(results, type = "sequences", top_n = 10)
-
-par(mfrow = c(1, 1))
-
-# ==============================================================================
-# ANALYSIS WITH DIFFERENT PARAMETERS
-# ==============================================================================
-
-cat("\n\n=== Analysis with Stricter Thresholds ===\n")
-
-# Stricter analysis
-results_strict <- explore_sequence_patterns(
-  data = sequence_data,
-  min_length = 2,
-  max_length = 3,
-  min_support = 0.10,    # 10% support
-  min_count = 5,         # At least 5 occurrences
-  correction = "bonferroni",  # Stricter correction
-  alpha = 0.01,          # Stricter significance
-  verbose = TRUE
+# Filter patterns programmatically
+filtered <- filter_patterns(
+  results,
+  min_support = 0.1,
+  pattern_length = 2,
+  significant_only = TRUE
 )
+cat("Filtered patterns (support > 0.1, length 2, significant):\n")
+print(filtered)
 
-print(results_strict)
+# Get top sequences
+top <- top_sequences(results, top_n = 5, significant_only = TRUE)
+cat("\nTop 5 significant patterns:\n")
+print(top)
 
-# ==============================================================================
-# GROUP-SPECIFIC ANALYSIS
-# ==============================================================================
-
-cat("\n\n=== Group-Specific Pattern Analysis ===\n")
-
-# Analyze Group A only
-group_A_data <- seqdata[seqdata$Group == "A", -1]
-cat("Analyzing Group A (", nrow(group_A_data), " sequences):\n")
-
-results_A <- explore_sequence_patterns(
-  data = group_A_data,
-  min_length = 2,
-  max_length = 3,
-  min_support = 0.05,
-  verbose = FALSE
-)
-
-cat("Group A - Significant patterns:", results_A$summary$n_significant_patterns, "\n")
-cat("Most common pattern:", results_A$summary$most_common_pattern, "\n")
-
-# Analyze Group B only
-group_B_data <- seqdata[seqdata$Group == "B", -1]
-cat("\nAnalyzing Group B (", nrow(group_B_data), " sequences):\n")
-
-results_B <- explore_sequence_patterns(
-  data = group_B_data,
-  min_length = 2,
-  max_length = 3,
-  min_support = 0.05,
-  verbose = FALSE
-)
-
-cat("Group B - Significant patterns:", results_B$summary$n_significant_patterns, "\n")
-cat("Most common pattern:", results_B$summary$most_common_pattern, "\n")
-
-# ==============================================================================
-# ACCESSING RAW DATA
-# ==============================================================================
-
-cat("\n\n=== Accessing Analysis Components ===\n")
-
-# Summary statistics
-cat("Summary statistics:\n")
-cat("  - Mean sequence length:", round(results$summary$mean_sequence_length, 2), "\n")
-cat("  - State entropy:", round(results$summary$state_entropy, 3), "\n")
-cat("  - Number of unique patterns:", results$summary$n_unique_patterns, "\n")
-cat("  - Number of significant patterns:", results$summary$n_significant_patterns, "\n")
-
-# Get parameters used
-cat("\nAnalysis parameters:\n")
-print(results$parameters[c("min_length", "max_length", "min_support", "correction")])
-
-cat("\n=== Demo Complete ===\n")
+cat("\n======================================================\n")
+cat("DEMO COMPLETE\n")
+cat("======================================================\n")

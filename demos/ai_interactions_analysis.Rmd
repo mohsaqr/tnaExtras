@@ -1,0 +1,75 @@
+---
+title: "AI-Student Interaction Sequence Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+options(scipen = 999)
+library(dplyr)
+```
+
+## Data Setup
+
+```{r data}
+seq_data <- preparedRC$sequence_data
+
+node_types <- list(
+  student_intents = c("Instruct", "Seek.Help", "Inquire", "Debug", "Socialize"),
+  ai_roles = c("Tutor", "Analyzer", "Coder", "Supporter", "Sycophant")
+)
+```
+
+## 1. N-Gram Patterns
+
+```{r ngrams}
+patterns <- explore_patterns(seq_data, type = "ngrams", min_length = 3, 
+                             max_length = 5, min_support = 0.05)
+print(patterns)
+significant_patterns(patterns)
+```
+
+## 2. Abstract Patterns
+
+```{r abstract}
+abstract <- explore_patterns(seq_data, type = "abstract")
+print(abstract)
+```
+
+## 3. Gapped Patterns
+
+```{r gapped}
+gapped <- find_patterns(seq_data, max_gap = 2, min_support = 0.05)
+print(gapped)
+```
+
+## 4. Meta-Path Discovery
+
+```{r meta}
+meta <- find_meta_paths(seq_data, node_types = node_types, 
+                        min_length = 3, max_length = 4, min_support = 0.05)
+print(meta)
+summary(meta)
+```
+
+## 5. Specific Schema Search
+
+```{r schema}
+# Student -> AI -> Student pattern
+meta_sis <- find_meta_paths(seq_data, node_types = node_types,
+                            schema = c("student_intents", "ai_roles", "student_intents"))
+print(meta_sis)
+meta_sis$patterns
+```
+
+## 6. Type Transitions
+
+```{r transitions}
+meta$type_transitions
+```
+
+## 7. Visualization
+
+```{r plot, fig.width=10, fig.height=6}
+plot(patterns, top_n = 20)
+```
+

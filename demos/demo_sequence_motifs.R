@@ -1,266 +1,184 @@
 # ==============================================================================
 # DEMO: Sequence Motif Analysis
 # ==============================================================================
-#
-# This demo shows how to use the sequence motif analysis functions:
-# - detect_abstract_patterns(): Find returns, oscillations, progressions
-# - find_gapped_patterns(): Find patterns with wildcards (A-*-B)
-# - find_meta_paths(): Discover meta-paths across node types
-#
-# Using regulation data from the tna package
+# This demo shows how to use find_patterns() for wildcard search
+# and find_meta_paths() for type-level pattern discovery.
 # ==============================================================================
 
-# Load packages
-library(tnaExtras)
+# Load sample data
+load("data/seqdata.rda")
+seq_data <- seqdata[, -1]
 
-# Load regulation data from tna package
-# If tna is not installed, use the included regulation_grouped dataset
-if (requireNamespace("tna", quietly = TRUE)) {
-  data <- tna::group_regulation
-  cat("Using tna::group_regulation data\n")
-} else {
-  data(regulation_grouped)
-  data <- regulation_grouped
-  cat("Using tnaExtras::regulation_grouped data\n")
-}
+cat("======================================================\n")
+cat("SEQUENCE MOTIF ANALYSIS DEMO\n")
+cat("======================================================\n\n")
 
-# Remove group column for analysis
-seq_data <- data[, -1]
+# ------------------------------------------------------------------------------
+# 1. WILDCARD PATTERN SEARCH
+# ------------------------------------------------------------------------------
+cat("=== 1. WILDCARD PATTERN SEARCH ===\n\n")
 
-cat("\n=== Data Overview ===\n")
-cat("Sequences:", nrow(seq_data), "\n")
-cat("Time points:", ncol(seq_data), "\n")
-cat("Sample sequence:", paste(head(as.character(seq_data[1, ]), 10), collapse = " -> "), "...\n")
-
-# ==============================================================================
-# 1. ABSTRACT PATTERN DETECTION
-# ==============================================================================
-
-cat("\n\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-cat("1. ABSTRACT PATTERN DETECTION\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-
-# Detect all abstract patterns
-abstract <- detect_abstract_patterns(
-  data = seq_data,
-  patterns = "all",        # Detect all pattern types
-  min_gap = 1,
-  max_gap = 3,
-  min_support = 0.05,
-  verbose = TRUE
-)
-
-print(abstract)
-
-# Access specific pattern types
-cat("\n--- Return Patterns (A->*->A) ---\n")
-print(head(abstract$returns, 10))
-
-cat("\n--- Repetition Patterns (A->A) ---\n")
-print(head(abstract$repetitions, 10))
-
-cat("\n--- Oscillation Patterns (A->B->A->B) ---\n")
-if (nrow(abstract$oscillations) > 0) {
-  print(head(abstract$oscillations, 10))
-} else {
-  cat("No oscillation patterns found with current thresholds\n")
-}
-
-# Detect only returns with specific gap range
-cat("\n--- Returns with Gap 1-2 ---\n")
-returns_only <- detect_abstract_patterns(
+# Search for specific pattern with single wildcard (*)
+result1 <- find_patterns(
   seq_data,
-  patterns = "returns",
+  pattern = c("plan", "*", "consensus"),  # Vector format
+  verbose = FALSE
+)
+cat("Pattern: plan->*->consensus\n")
+print(result1$patterns)
+cat("\nInstances found:\n")
+print(head(result1$instances, 10))
+
+# Multi-wildcard pattern (**)
+result2 <- find_patterns(
+  seq_data,
+  pattern = c("plan", "**", "plan"),  # plan returns to plan
+  verbose = FALSE
+)
+cat("\n\nPattern: plan->**->plan (plan returns)\n")
+print(result2$patterns)
+
+# ------------------------------------------------------------------------------
+# 2. AUTO-DISCOVER GAPPED PATTERNS
+# ------------------------------------------------------------------------------
+cat("\n=== 2. AUTO-DISCOVER GAPPED PATTERNS ===\n\n")
+
+# Discover all gapped patterns automatically
+gapped <- find_patterns(
+  seq_data,
+  pattern = NULL,  # Auto-discover
   min_gap = 1,
   max_gap = 2,
   min_support = 0.1,
   verbose = FALSE
 )
-print(head(returns_only$returns, 10))
 
-# ==============================================================================
-# 2. GAP-CONSTRAINED PATTERN FINDING
-# ==============================================================================
-
-cat("\n\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-cat("2. GAP-CONSTRAINED PATTERN FINDING\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-
-# Auto-discover gapped patterns
-cat("\n--- Auto-discovered Gapped Patterns ---\n")
-gapped <- find_gapped_patterns(
-  data = seq_data,
-  pattern = NULL,          # Auto-discover
-  min_gap = 1,
-  max_gap = 2,
-  min_support = 0.05,
-  verbose = TRUE
-)
-
-print(gapped)
-
-# View top patterns
-cat("\n--- Top 15 Gapped Patterns ---\n")
+cat("Gapped patterns found:", nrow(gapped$patterns), "\n\n")
 print(head(gapped$patterns, 15))
 
-# Search for specific patterns
-cat("\n--- Specific Pattern: plan-*-consensus ---\n")
-specific <- find_gapped_patterns(
+# Filter by starting state
+gapped_plan <- find_patterns(
   seq_data,
-  pattern = "plan-*-consensus",
+  pattern = NULL,
+  min_gap = 1,
+  max_gap = 2,
+  start_state = "plan",
   verbose = FALSE
 )
-print(specific$patterns)
-cat("\nInstances found:\n")
-print(head(specific$instances, 10))
+cat("\n\nGapped patterns starting with 'plan':", nrow(gapped_plan$patterns), "\n")
+print(head(gapped_plan$patterns, 10))
 
-# Multi-gap pattern
-cat("\n--- Multi-gap Pattern: plan-**-plan (plan returns) ---\n")
-multi_gap <- find_gapped_patterns(
-  seq_data,
-  pattern = "plan-**-plan",
-  verbose = FALSE
-)
-print(multi_gap$patterns)
-
-# ==============================================================================
+# ------------------------------------------------------------------------------
 # 3. META-PATH DISCOVERY
-# ==============================================================================
+# ------------------------------------------------------------------------------
+cat("\n=== 3. META-PATH DISCOVERY ===\n\n")
 
-cat("\n\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-cat("3. META-PATH DISCOVERY\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-
-# Define node types for regulation states
+# Define node types
 node_types <- list(
   cognitive = c("plan", "monitor", "adapt"),
   social = c("discuss", "consensus", "coregulate", "synthesis"),
   emotional = c("emotion", "cohesion")
 )
 
-cat("\nNode Types Defined:\n")
-for (type in names(node_types)) {
-  cat(sprintf("  %s: %s\n", type, paste(node_types[[type]], collapse = ", ")))
-}
-
-# Auto-discover all meta-paths (hybrid discovery)
-cat("\n--- Auto-discovering Meta-Paths ---\n")
+# Auto-discover all meta-paths
 meta <- find_meta_paths(
-  data = seq_data,
+  seq_data,
   node_types = node_types,
-  schema = NULL,           # Auto-discover (hybrid)
-  min_length = 2,
-  max_length = 4,
-  min_support = 0.05,
-  verbose = TRUE
+  max_length = 3,
+  min_support = 0.05
 )
 
 print(meta)
-
-# Detailed summary
-cat("\n--- Detailed Summary ---\n")
 summary(meta)
 
-# View meta-paths by length
-cat("\n--- Meta-Paths by Length ---\n")
-for (len in 2:4) {
-  len_paths <- meta$meta_paths[meta$meta_paths$length == len, ]
-  if (nrow(len_paths) > 0) {
-    cat(sprintf("\nLength %d (%d patterns):\n", len, nrow(len_paths)))
-    print(head(len_paths[order(len_paths$count, decreasing = TRUE), 
-                         c("schema", "count", "support", "significant")], 5))
-  }
-}
+# ------------------------------------------------------------------------------
+# 4. SPECIFIC SCHEMA SEARCH
+# ------------------------------------------------------------------------------
+cat("\n=== 4. SPECIFIC SCHEMA SEARCH ===\n\n")
 
-# View type transitions
-cat("\n--- Type-to-Type Transitions ---\n")
-print(meta$type_transitions)
-
-# Search for specific schema (using vector format - recommended)
-cat("\n--- Specific Schema: cognitive->social->cognitive ---\n")
-meta_specific <- find_meta_paths(
+# Search for cognitive->social->cognitive pattern
+meta_csc <- find_meta_paths(
   seq_data,
   node_types = node_types,
   schema = c("cognitive", "social", "cognitive"),  # Vector format
   verbose = FALSE
 )
-print(meta_specific$meta_paths)
-cat("\nTop instances:\n")
-print(head(meta_specific$instances, 10))
 
-# Schema with wildcards (using vector format)
-cat("\n--- Schema with Wildcard: cognitive->**->cognitive (cognitive returns) ---\n")
+cat("Schema: cognitive->social->cognitive\n\n")
+cat("Schema-level statistics:\n")
+print(meta_csc$schemas)
+
+cat("\nState-level patterns:\n")
+print(head(meta_csc$patterns, 10))
+
+# With wildcard
 meta_return <- find_meta_paths(
   seq_data,
   node_types = node_types,
-  schema = c("cognitive", "**", "cognitive"),  # Vector with wildcard
+  schema = c("cognitive", "**", "cognitive"),  # Cognitive returns
   verbose = FALSE
 )
-print(meta_return$meta_paths)
-cat("\nSample instances:\n")
-print(head(meta_return$instances, 5))
+cat("\n\nSchema: cognitive->**->cognitive (cognitive returns)\n")
+print(meta_return$schemas)
 
-# ==============================================================================
-# 4. COMBINING ANALYSES
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# 5. FILTERING BY STATE AND SCHEMA
+# ------------------------------------------------------------------------------
+cat("\n=== 5. FILTERING BY STATE AND SCHEMA ===\n\n")
 
-cat("\n\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-cat("4. COMBINING ANALYSES\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
+# Filter by starting state
+meta_plan <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  max_length = 3,
+  start_state = "plan",
+  verbose = FALSE
+)
+cat("Patterns starting with 'plan':", nrow(meta_plan$patterns), "\n")
+print(head(meta_plan$patterns[, c("pattern", "schema", "count", "support")], 10))
 
-# Find significant patterns across all analyses
-cat("\n--- Significant Abstract Patterns ---\n")
-if (!is.null(abstract$returns) && "significant" %in% names(abstract$returns)) {
-  sig_returns <- abstract$returns[abstract$returns$significant, ]
-  cat(sprintf("Significant returns: %d\n", nrow(sig_returns)))
-}
+# Filter by starting schema type
+meta_cog <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  max_length = 3,
+  start_schema = "cognitive",
+  verbose = FALSE
+)
+cat("\n\nPatterns with cognitive start:", nrow(meta_cog$patterns), "\n")
+print(head(meta_cog$patterns[, c("pattern", "schema", "count", "support")], 10))
 
-cat("\n--- Significant Gapped Patterns ---\n")
-if ("significant" %in% names(gapped$patterns)) {
-  sig_gapped <- gapped$patterns[gapped$patterns$significant, ]
-  cat(sprintf("Significant gapped patterns: %d\n", nrow(sig_gapped)))
-}
+# Filter by ending state
+meta_consensus <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  max_length = 3,
+  end_state = "consensus",
+  verbose = FALSE
+)
+cat("\n\nPatterns ending with 'consensus':", nrow(meta_consensus$patterns), "\n")
+print(head(meta_consensus$patterns[, c("pattern", "schema", "count", "support")], 10))
 
-cat("\n--- Significant Meta-Paths ---\n")
-if ("significant" %in% names(meta$meta_paths)) {
-  sig_meta <- meta$meta_paths[meta$meta_paths$significant, ]
-  cat(sprintf("Significant meta-paths: %d\n", nrow(sig_meta)))
-  cat("\nTop 5 significant meta-paths:\n")
-  print(head(sig_meta[order(sig_meta$lift, decreasing = TRUE), 
-                       c("schema", "count", "support", "lift", "p_adjusted")], 5))
-}
+# Combine filters
+meta_combined <- find_meta_paths(
+  seq_data,
+  node_types = node_types,
+  max_length = 3,
+  start_state = "plan",
+  end_schema = "social",
+  verbose = FALSE
+)
+cat("\n\nPatterns: start='plan', end_schema='social':", nrow(meta_combined$patterns), "\n")
+print(head(meta_combined$patterns[, c("pattern", "schema", "count", "support")], 10))
 
-# ==============================================================================
-# SUMMARY
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# 6. TYPE TRANSITIONS
+# ------------------------------------------------------------------------------
+cat("\n=== 6. TYPE TRANSITIONS ===\n\n")
 
-cat("\n\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
-cat("ANALYSIS SUMMARY\n")
-cat("=" ,rep("=", 60), "\n", sep = "")
+cat("Type-to-type transition probabilities:\n")
+print(meta$type_transitions)
 
-cat("\nAbstract Patterns:\n")
-cat(sprintf("  Returns: %d (significant: %d)\n", 
-           abstract$summary$n_returns,
-           if (!is.null(abstract$returns) && "significant" %in% names(abstract$returns))
-             sum(abstract$returns$significant) else 0))
-cat(sprintf("  Repetitions: %d\n", abstract$summary$n_repetitions))
-cat(sprintf("  Oscillations: %d\n", abstract$summary$n_oscillations))
-cat(sprintf("  Progressions: %d\n", abstract$summary$n_progressions))
-
-cat("\nGapped Patterns:\n")
-cat(sprintf("  Total: %d (significant: %d)\n",
-           gapped$summary$n_patterns,
-           if (!is.na(gapped$summary$n_significant)) gapped$summary$n_significant else 0))
-
-cat("\nMeta-Paths:\n")
-cat(sprintf("  Total: %d (significant: %d)\n",
-           meta$summary$n_meta_paths,
-           if (!is.na(meta$summary$n_significant)) meta$summary$n_significant else 0))
-
-cat("\n=== Demo Complete ===\n")
-
+cat("\n======================================================\n")
+cat("DEMO COMPLETE\n")
+cat("======================================================\n")
