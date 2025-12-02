@@ -622,9 +622,9 @@ summary.meta_paths <- function(object, ...) {
 
 #' @rdname find_patterns
 #' @export
-find_gapped_patterns <- function(...) {
+find_gapped_patterns <- function(data, pattern = NULL, ...) {
   .Deprecated("find_patterns")
-  find_patterns(...)
+  find_patterns(data, pattern = pattern, ...)
 }
 
 cat("Sequence motif toolkit loaded.\n")

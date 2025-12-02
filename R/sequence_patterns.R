@@ -503,18 +503,16 @@ top_sequences <- function(x, top_n = 10, min_support = NULL, significant_only = 
 
 #' @rdname explore_patterns
 #' @export
-explore_sequence_patterns <- function(...) {
+explore_sequence_patterns <- function(data, ...) {
   .Deprecated("explore_patterns")
-  explore_patterns(...)
+  explore_patterns(data, ...)
 }
 
 #' @rdname explore_patterns
 #' @export
-detect_abstract_patterns <- function(...) {
+detect_abstract_patterns <- function(data, patterns = "all", ...) {
   .Deprecated("explore_patterns", msg = "detect_abstract_patterns is deprecated. Use explore_patterns(..., type = 'abstract') instead.")
-  args <- list(...)
-  args$type <- "abstract"
-  do.call(explore_patterns, args)
+  explore_patterns(data, type = "abstract", ...)
 }
 
 cat("Sequence pattern toolkit loaded.\n")
