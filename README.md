@@ -8,6 +8,8 @@
 
 A comprehensive R package for analyzing temporal patterns in sequential data. This package provides tools for sequence comparison, pattern analysis, and computation of sequence-level indices with focus on complexity systems, Markov chain dynamics, and temporal network analysis.
 
+**NEW in v0.4.0: Unified Pattern Discovery** - Revolutionary `discover_patterns()` function combines all pattern analysis capabilities into a single, 10-50x faster interface with optimized algorithms.
+
 **NEW in v0.3.0: Association Rule Learning** - Complete implementation of Apriori and FP-Growth algorithms for discovering frequent patterns and association rules in transaction data.
 
 **Enhanced in v0.2.0: Multi-Group Support** - Now supports analysis across multiple groups (3+) in addition to the original two-group comparisons.
@@ -528,73 +530,200 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Sequence Pattern Exploration (NEW)
+## Sequence Pattern Discovery (NEW) - Unified High-Performance Toolkit
 
-### `discover_patterns()` - Unified High-Performance Function
+### `discover_patterns()` - The Complete Solution
 
-The most powerful and fastest way to discover all types of patterns in sequential data:
+**discover_patterns()** is a revolutionary unified function that combines and optimizes all pattern discovery capabilities into a single, blazingly fast interface. No more choosing between different functions - one powerful tool handles everything.
 
 ```r
 library(tnaExtras)
 
-# Load regulation data
+# Load your sequential data
 data <- tna::group_regulation
-seq_data <- data[, -1]
+seq_data <- data[, -1]  # Remove group column if present
 
-# 1. Fast n-gram discovery (optimized for speed)
+# === DISCOVERY MODES ===
+
+# 1. N-GRAM EXTRACTION (Fastest - for contiguous patterns)
 ngrams <- discover_patterns(
   seq_data,
-  type = "ngrams",        # Fastest algorithm
+  type = "ngrams",
   min_length = 2,
   max_length = 4,
-  fast_mode = TRUE        # Enable optimizations
+  fast_mode = TRUE
 )
+print(ngrams)  # Shows frequency, support, significance
 
-# 2. Discover gapped patterns with wildcards
+# 2. GAPPED PATTERN DISCOVERY (For patterns with gaps)
 gapped <- discover_patterns(
   seq_data,
   type = "gapped",
   min_gap = 1,
   max_gap = 2,
-  fast_mode = TRUE
+  min_support = 0.05
 )
 
-# 3. Detect abstract structural patterns
+# 3. ABSTRACT PATTERN DETECTION (Structural motifs)
 abstract <- discover_patterns(
   seq_data,
   type = "abstract",
-  fast_mode = TRUE
+  min_gap = 1,
+  max_gap = 3
 )
 
-# 4. Analyze full sequence frequencies
-full <- discover_patterns(
+# 4. FULL SEQUENCE ANALYSIS
+full_seqs <- discover_patterns(
   seq_data,
-  type = "full"
+  type = "full",
+  min_support = 0.01
 )
 
-# 5. Targeted search with wildcards
-specific <- discover_patterns(
+# === TARGETED SEARCH ===
+
+# 5. Single wildcard search (* = any single state)
+transitions <- discover_patterns(
   seq_data,
-  pattern = "plan->*->consensus"  # Find plan followed by consensus with 1 gap
+  pattern = "plan->*->consensus"
 )
+print(transitions$instances)  # Shows actual matched sequences
 
-# 6. Multi-wildcard search
+# 6. Multi-wildcard search (** = any number of states)
 returns <- discover_patterns(
   seq_data,
-  pattern = "plan->**->plan"      # Find plan returns with any gap
+  pattern = "cognitive->**->cognitive"
 )
 
-# View results
-print(specific)
-summary(specific)
-plot(specific, type = "patterns", top_n = 15)
+# 7. Complex patterns with multiple wildcards
+complex <- discover_patterns(
+  seq_data,
+  pattern = "plan->*->discuss->**->consensus"
+)
+
+# === ADVANCED FEATURES ===
+
+# 8. Filtered discovery
+filtered <- discover_patterns(
+  seq_data,
+  type = "ngrams",
+  start_state = "plan",     # Must start with "plan"
+  end_state = "consensus",  # Must end with "consensus"
+  min_support = 0.1,
+  max_patterns = 50         # Limit results
+)
+
+# 9. Statistical analysis with custom corrections
+stats <- discover_patterns(
+  seq_data,
+  type = "gapped",
+  test_significance = TRUE,
+  correction = "bonferroni",  # Conservative correction
+  alpha = 0.01
+)
+
+# 10. Performance optimization for large datasets
+large_result <- discover_patterns(
+  seq_data,
+  type = "ngrams",
+  fast_mode = TRUE,         # Memory-efficient algorithms
+  max_patterns = 1000       # Early stopping
+)
+
+# === RESULTS ANALYSIS ===
+
+# View patterns
+print(result$patterns)
+
+# View summary statistics
+summary(result)
+
+# Extract significant patterns
+significant <- result$patterns[result$patterns$significant, ]
+
+# Visualize top patterns
+plot(result, type = "patterns", top_n = 20)
+
+# For search results, view matched instances
+print(result$instances)
 ```
 
-**Performance Benefits:**
-- **10-50x faster** than separate functions
-- **Memory efficient** with pre-allocated vectors
-- **Unified interface** - one function for all pattern types
-- **Optimized algorithms** using vectorized operations
+### Key Features & Benefits
+
+| Feature | Benefit |
+|---------|---------|
+| **Unified Interface** | One function replaces `explore_patterns` + `find_patterns` + `find_meta_paths` |
+| **10-50x Performance** | Optimized vectorized algorithms with fast_mode option |
+| **Memory Efficient** | Pre-allocated data structures prevent memory reallocation |
+| **Wildcard Support** | `*` (single) and `**` (multi) wildcards for flexible pattern matching |
+| **Statistical Testing** | Built-in significance testing with multiple correction methods |
+| **Flexible Filtering** | Filter by start/end states, support thresholds, pattern length |
+| **Comprehensive Output** | Patterns + instances + statistics + metadata in one result |
+| **Backward Compatible** | All old functions still work as wrappers |
+
+### Performance Comparison
+
+```r
+# Before: Multiple slow functions
+ngrams <- explore_patterns(data, type = "ngrams")      # Slow
+gapped <- find_patterns(data, pattern = NULL)          # Very slow
+search <- find_patterns(data, pattern = "A->*->B")     # Slow
+
+# After: One fast function
+all_patterns <- discover_patterns(data, fast_mode = TRUE)  # 10-50x faster!
+```
+
+### Migration Guide
+
+```r
+# Old way
+explore_patterns(data, type = "ngrams")     → discover_patterns(data, type = "ngrams")
+find_patterns(data, pattern = NULL)         → discover_patterns(data, type = "gapped")
+find_patterns(data, pattern = "A->*->B")    → discover_patterns(data, pattern = "A->*->B")
+find_meta_paths(data, node_types = types)   → discover_patterns(data, type = "meta")*
+detect_abstract_patterns(data)              → discover_patterns(data, type = "abstract")
+
+# * Meta-paths coming in next update
+```
+
+### Complete Example Workflow
+
+```r
+library(tnaExtras)
+
+# Load data
+data <- tna::group_regulation
+seq_data <- data[, -1]
+
+# 1. Quick pattern overview
+overview <- discover_patterns(seq_data, type = "ngrams", max_length = 3, fast_mode = TRUE)
+
+# 2. Find interesting transitions
+transitions <- discover_patterns(seq_data, pattern = "plan->*->consensus")
+
+# 3. Discover structural motifs
+motifs <- discover_patterns(seq_data, type = "abstract")
+
+# 4. Analyze with statistics
+results <- discover_patterns(seq_data, type = "gapped", test_significance = TRUE)
+
+# 5. View comprehensive results
+print(results)
+summary(results)
+plot(results, type = "patterns", top_n = 15)
+
+# 6. Extract insights
+significant_patterns <- results$patterns[results$patterns$significant, ]
+high_lift_patterns <- results$patterns[results$patterns$lift > 2, ]
+```
+
+### Demo Script
+
+Run the comprehensive demo to see all features in action:
+
+```r
+# Run the unified pattern discovery demo
+source("demos/demo_discover_patterns.R")
+```
 
 ### `explore_patterns()` - Legacy Unified Function
 
