@@ -651,38 +651,44 @@ print(result$instances)
 
 | Feature | Benefit |
 |---------|---------|
-| **Unified Interface** | One function replaces `explore_patterns` + `find_patterns` + `find_meta_paths` |
+| **Unified Interface** | Single function handles all pattern discovery modes |
 | **10-50x Performance** | Optimized vectorized algorithms with fast_mode option |
 | **Memory Efficient** | Pre-allocated data structures prevent memory reallocation |
-| **Wildcard Support** | `*` (single) and `**` (multi) wildcards for flexible pattern matching |
+| **Wildcard Support** | `*` (single) and `**` (multi-wildcard) for flexible pattern matching |
 | **Statistical Testing** | Built-in significance testing with multiple correction methods |
 | **Flexible Filtering** | Filter by start/end states, support thresholds, pattern length |
 | **Comprehensive Output** | Patterns + instances + statistics + metadata in one result |
-| **Backward Compatible** | All old functions still work as wrappers |
+| **Backward Compatible** | Legacy functions still work as wrappers |
 
 ### Performance Comparison
 
 ```r
-# Before: Multiple slow functions
-ngrams <- explore_patterns(data, type = "ngrams")      # Slow
+# Old approach: Multiple slow functions
+ngrams <- explore_patterns(data, type = "ngrams")      # Slow nested loops
 gapped <- find_patterns(data, pattern = NULL)          # Very slow
-search <- find_patterns(data, pattern = "A->*->B")     # Slow
+search <- find_patterns(data, pattern = "A->*->B")     # Inefficient
 
-# After: One fast function
+# New unified approach: One blazingly fast function
 all_patterns <- discover_patterns(data, fast_mode = TRUE)  # 10-50x faster!
+ngrams <- discover_patterns(data, type = "ngrams", fast_mode = TRUE)
+gapped <- discover_patterns(data, type = "gapped", fast_mode = TRUE)
+search <- discover_patterns(data, pattern = "A->*->B")     # Optimized search
 ```
 
 ### Migration Guide
 
-```r
-# Old way
-explore_patterns(data, type = "ngrams")     → discover_patterns(data, type = "ngrams")
-find_patterns(data, pattern = NULL)         → discover_patterns(data, type = "gapped")
-find_patterns(data, pattern = "A->*->B")    → discover_patterns(data, pattern = "A->*->B")
-find_meta_paths(data, node_types = types)   → discover_patterns(data, type = "meta")*
-detect_abstract_patterns(data)              → discover_patterns(data, type = "abstract")
+The old separate functions are now unified under `discover_patterns()`:
 
-# * Meta-paths coming in next update
+```r
+# Legacy functions (still work as wrappers)
+explore_patterns(data, type = "ngrams")     # → discover_patterns(data, type = "ngrams")
+find_patterns(data, pattern = "A->*->B")    # → discover_patterns(data, pattern = "A->*->B")
+detect_abstract_patterns(data)              # → discover_patterns(data, type = "abstract")
+
+# New unified approach (recommended)
+discover_patterns(data, type = "ngrams", fast_mode = TRUE)    # 10-50x faster!
+discover_patterns(data, pattern = "A->*->B")                  # Targeted search
+discover_patterns(data, type = "abstract")                    # Structural patterns
 ```
 
 ### Complete Example Workflow
@@ -725,86 +731,6 @@ Run the comprehensive demo to see all features in action:
 source("demos/demo_discover_patterns.R")
 ```
 
-### `explore_patterns()` - Legacy Unified Function
-
-Unified function for exploring frequency, patterns, and structures in sequences with statistical significance testing:
-
-```r
-library(tnaExtras)
-
-# Load regulation data from tna package
-data <- tna::group_regulation
-seq_data <- data[, -1]  # Remove group column
-
-# 1. Explore n-gram patterns (default)
-# Finds frequent subsequences of length 1-5
-results <- explore_patterns(
-  seq_data,
-  type = "ngrams",
-  min_length = 2,
-  max_length = 4,
-  min_support = 0.05,
-  correction = "fdr"
-)
-
-print(results)
-summary(results)
-
-# Get significant patterns
-sig_patterns <- significant_patterns(results)
-
-# 2. Explore abstract structural patterns
-# Detects returns, repetitions, oscillations, and progressions
-abstract <- explore_patterns(
-  seq_data, 
-  type = "abstract",
-  min_support = 0.05
-)
-print(abstract)
-
-# 3. Explore full sequence frequencies
-full_seqs <- explore_patterns(
-  seq_data,
-  type = "full",
-  min_support = 0.01
-)
-
-# Visualize top patterns
-plot(results, type = "patterns", top_n = 15)
-```
-
-## Sequence Motif Analysis (NEW)
-
-Advanced functions for discovering gap-constrained patterns and meta-paths in sequential data.
-
-### 1. `find_patterns()`
-
-Finds patterns with wildcards/gaps in sequences. Supports single (`*`) and multiple (`**`) wildcards.
-
-```r
-# Auto-discover all gapped patterns (A -> * -> B)
-gapped <- find_patterns(
-  seq_data,
-  pattern = NULL,          # Auto-discover
-  min_gap = 1,
-  max_gap = 2,
-  min_support = 0.05
-)
-
-print(gapped)
-
-# Search for specific pattern with single wildcard
-specific <- find_patterns(
-  seq_data,
-  pattern = c("plan", "*", "consensus")  # plan followed by anything, then consensus
-)
-
-# Multi-gap pattern (returns)
-multi_gap <- find_patterns(
-  seq_data,
-  pattern = c("plan", "**", "plan")      # plan returns after any number of steps
-)
-```
 
 ### 2. `find_meta_paths()`
 
@@ -873,35 +799,40 @@ library(tnaExtras)
 data <- tna::group_regulation
 seq_data <- data[, -1]
 
-# 1. Explore basic patterns
-patterns <- explore_patterns(seq_data, min_support = 0.05)
+# 1. Discover n-gram patterns
+patterns <- discover_patterns(seq_data, type = "ngrams", min_support = 0.05, fast_mode = TRUE)
 print(patterns)
 
 # 2. Detect abstract structural patterns
-abstract <- explore_patterns(seq_data, type = "abstract")
+abstract <- discover_patterns(seq_data, type = "abstract", fast_mode = TRUE)
 print(abstract)
 
 # 3. Find gap-constrained patterns
-gapped <- find_patterns(seq_data, max_gap = 2)
+gapped <- discover_patterns(seq_data, type = "gapped", max_gap = 2, fast_mode = TRUE)
 print(gapped)
 
-# 4. Discover meta-paths
+# 4. Targeted pattern search
+specific <- discover_patterns(seq_data, pattern = "plan->*->consensus")
+print(specific$instances)  # View actual matched sequences
+
+# 5. Discover meta-paths (when available)
 node_types <- list(
   cognitive = c("plan", "monitor", "adapt"),
   social = c("discuss", "consensus", "coregulate", "synthesis"),
   emotional = c("emotion", "cohesion")
 )
 
-meta <- find_meta_paths(seq_data, node_types = node_types)
+meta <- find_meta_paths(seq_data, node_types = node_types)  # Still separate for now
 print(meta)
 summary(meta)
 
-# 5. Extract significant findings
-sig_patterns <- significant_patterns(patterns)
-sig_meta <- meta$schemas[meta$schemas$significant, ]
+# 6. Extract significant findings
+sig_patterns <- patterns$patterns[patterns$patterns$significant, ]
+sig_abstract <- abstract$patterns[abstract$patterns$significant, ]
 
-# 6. Visualize
+# 7. Visualize results
 plot(patterns, type = "patterns", top_n = 15)
+plot(abstract, type = "patterns", top_n = 10)
 ```
 
 ## Citation
