@@ -53,6 +53,7 @@ export(summary.pattern_analysis_multi)
 export(validate_parameters)
 
 # Main pattern analysis functions (unified)
+export(discover_patterns)
 export(explore_patterns)
 export(find_patterns)
 export(find_meta_paths)
