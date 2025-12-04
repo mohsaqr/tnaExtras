@@ -13,15 +13,63 @@ library(dplyr)
 ```{r data}
 seq_data <- preparedRC$sequence_data
 
+# 5. Discover meta-paths (when available)
 node_types <- list(
-  student_intents = c("Instruct", "Seek.Help", "Inquire", "Debug", "Socialize"),
-  ai_roles = c("Tutor", "Analyzer", "Coder", "Supporter", "Sycophant")
+  cognitive = c("plan", "monitor", "adapt"),
+  social = c("discuss", "consensus", "coregulate", "synthesis"),
+  emotional = c("emotion", "cohesion")
 )
+
+Gd <- c(rep("High", 1000),rep("Low", 1000))
+
+
+REg <- cbind (Gd, group_regulation)
+
+
+Veraa <- tnaExtras::analyze_patterns(REg, group_col = "Gd") %>% as.data.frame()
+
+
+
+seq_data <- group_regulation[1:500, 1:10]
+
+rules <- apriori_rules(seq_data, 
+                      min_support = 0.1, 
+                      min_confidence = 0.6,
+                      min_lift = 0.6)
+
+# Same learning activity data
+
+
+
+
+# Scatter plot: Support vs Confidence, colored by Lift
+plot_rules_scatter(rules)
+
+# Network diagram showing item relationships
+plot_rules_network(rules, layout = "force")
+
+# Quality metrics distribution
+plot_rules_quality(rules)
+
+# Frequency bar chart
+plot_itemset_frequency(rules)
+
+# Matrix visualization
+plot_rules_matrix(rules)
+
+# Generic plot method
+plot(rules, type = "scatter")
+plot(rules, type = "network")
+
+
 ```
 
 ## 1. N-Gram Patterns
 
 ```{r ngrams}
+
+library(tnaExtras)
+
 patterns <- explore_patterns(seq_data, type = "ngrams", min_length = 3, 
                              max_length = 5, min_support = 0.05)
 print(patterns)
@@ -49,6 +97,7 @@ meta <- find_meta_paths(seq_data, node_types = node_types,
                         min_length = 3, max_length = 4, min_support = 0.05)
 print(meta)
 summary(meta)
+
 ```
 
 ## 5. Specific Schema Search
@@ -56,9 +105,10 @@ summary(meta)
 ```{r schema}
 # Student -> AI -> Student pattern
 meta_sis <- find_meta_paths(seq_data, node_types = node_types,
-                            schema = c("student_intents", "ai_roles", "student_intents"))
+                            schema = c("social", "cognitive", "cognitive"))
 print(meta_sis)
 meta_sis$patterns
+
 ```
 
 ## 6. Type Transitions

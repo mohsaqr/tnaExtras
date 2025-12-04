@@ -342,13 +342,13 @@ find_meta_paths <- function(data,
   if (!is.null(schema)) {
     if (verbose) cat("Searching for schema:", schema, "\n")
     results <- search_meta_path_schema(seq_data$sequences, type_sequences, schema,
-                                       state_to_type, node_types, seq_data$n_sequences,
+                                       state_to_type, node_types, seq_data$n_sequences, seq_data$n_states,
                                        test_significance, correction, alpha)
   } else {
     if (verbose) cat("Auto-discovering meta-paths...\n")
     results <- discover_meta_paths(seq_data$sequences, type_sequences, names(node_types),
                                    state_to_type, min_length, max_length,
-                                   seq_data$n_sequences, min_support, min_count,
+                                   seq_data$n_sequences, seq_data$n_states, min_support, min_count,
                                    test_significance, correction, alpha, verbose)
   }
   
@@ -388,7 +388,7 @@ find_meta_paths <- function(data,
 #' Search for specific meta-path schema
 #' @keywords internal
 search_meta_path_schema <- function(sequences, type_sequences, schema,
-                                    state_to_type, node_types, n_sequences,
+                                    state_to_type, node_types, n_sequences, n_states,
                                     test_significance, correction, alpha) {
   
   parts <- strsplit(gsub(" ", "", schema), "->")[[1]]
@@ -466,7 +466,7 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
   }
   
   # Instances stats
-  instances_df <- aggregate_instances(instance_list, instance_seqs, n_sequences, 1, # N_states not used for instance sig here
+  instances_df <- aggregate_instances(instance_list, instance_seqs, n_sequences, n_states,
                                       schema = schema, test_significance, correction, alpha)
   
   return(list(meta_paths = meta_paths_df, instances = instances_df))
@@ -476,7 +476,7 @@ search_meta_path_schema <- function(sequences, type_sequences, schema,
 #' @keywords internal
 discover_meta_paths <- function(sequences, type_sequences, type_names,
                                 state_to_type, min_length, max_length,
-                                n_sequences, min_support, min_count,
+                                n_sequences, n_states, min_support, min_count,
                                 test_significance, correction, alpha, verbose) {
   
   meta_list <- list()
@@ -537,7 +537,7 @@ discover_meta_paths <- function(sequences, type_sequences, type_names,
   if (test_significance && nrow(inst_df) > 0) {
     # Recalculate stats globally if needed, or rely on aggregate_instances if passed TRUE.
     # Here we computed basic stats, let's add significance now properly
-    inst_df <- compute_significance_stats(inst_df, n_sequences, 1, correction, alpha)
+    inst_df <- compute_significance_stats(inst_df, n_sequences, n_states, correction, alpha)
   }
   
   return(list(

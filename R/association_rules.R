@@ -121,21 +121,23 @@ apriori_rules <- function(transactions, min_support = 0.1, min_confidence = 0.8,
 #' rules <- fp_growth_rules(transactions, min_support = 0.2, min_confidence = 0.6)
 #' print(rules)
 #' summary(rules)
-fp_growth_rules <- function(transactions, min_support = 0.1, min_confidence = 0.8, 
+fp_growth_rules <- function(transactions, min_support = 0.1, min_confidence = 0.8,
                            min_lift = 1.0, verbose = TRUE) {
-  
+
   # Input validation
   if (missing(transactions)) {
     stop("transactions parameter is required")
   }
-  
+
   validate_parameters(min_support, min_confidence, min_lift)
-  
+
   if (verbose) cat("Preparing transaction data...\n")
-  
+
   # Prepare transactions
   trans_data <- prepare_transactions(transactions)
   trans_matrix <- create_transaction_matrix(trans_data$transactions)
+
+  n_transactions <- nrow(trans_matrix)
   
   if (verbose) {
     cat("Transaction summary:\n")
@@ -150,8 +152,8 @@ fp_growth_rules <- function(transactions, min_support = 0.1, min_confidence = 0.
   fp_tree <- build_fp_tree(trans_data$transactions, min_support, verbose)
   
   if (verbose) cat("Mining frequent patterns...\n")
-  
-  frequent_patterns <- mine_fp_tree(fp_tree, min_support, verbose)
+
+  frequent_patterns <- mine_fp_tree(fp_tree, min_support, n_transactions, verbose)
   
   if (length(frequent_patterns) == 0) {
     warning("No frequent patterns found with given support threshold")
@@ -474,33 +476,33 @@ insert_transaction_fp <- function(fp_tree, items) {
 #' @param min_support Minimum support threshold
 #' @param verbose Whether to show progress
 #' @return List of frequent patterns
-mine_fp_tree <- function(fp_tree, min_support, verbose = TRUE) {
-  
+mine_fp_tree <- function(fp_tree, min_support, n_transactions, verbose = TRUE) {
+
   frequent_patterns <- list()
   items <- names(fp_tree$header_table)
-  
-  # Mine patterns for each item (bottom-up)
+
+  # Mine patterns for each item (bottom-up, from least frequent to most frequent)
   for (i in length(items):1) {
     item <- items[i]
-    
+
     # Generate conditional pattern base
     conditional_patterns <- generate_conditional_patterns(fp_tree, item)
-    
+
     if (length(conditional_patterns) > 0) {
       # Build conditional FP-tree
-      conditional_tree <- build_conditional_fp_tree(conditional_patterns, min_support)
-      
+      conditional_tree <- build_conditional_fp_tree(conditional_patterns, min_support, n_transactions)
+
       # Add single item pattern
-      support <- fp_tree$header_table[[item]]$count / sum(fp_tree$item_counts)
+      support <- fp_tree$header_table[[item]]$count / n_transactions
       frequent_patterns[[item]] <- list(
         pattern = item,
         support = support,
         count = fp_tree$header_table[[item]]$count
       )
-      
+
       # Recursively mine conditional tree
       if (length(conditional_tree$header_table) > 0) {
-        conditional_patterns_result <- mine_fp_tree(conditional_tree, min_support, FALSE)
+        conditional_patterns_result <- mine_fp_tree(conditional_tree, min_support, n_transactions, FALSE)
         
         # Add item to each conditional pattern
         for (pattern_name in names(conditional_patterns_result)) {
@@ -561,19 +563,19 @@ generate_conditional_patterns <- function(fp_tree, item) {
 #' @param conditional_patterns List of conditional patterns
 #' @param min_support Minimum support threshold
 #' @return Conditional FP-tree
-build_conditional_fp_tree <- function(conditional_patterns, min_support) {
-  
+build_conditional_fp_tree <- function(conditional_patterns, min_support, n_transactions) {
+
   if (length(conditional_patterns) == 0) {
     return(list(root = list(), header_table = list(), item_counts = numeric(0)))
   }
-  
+
   # Count item frequencies in conditional patterns
   item_counts <- table(unlist(lapply(conditional_patterns, function(x) {
     rep(x$pattern, x$count)
   })))
-  
-  total_count <- sum(sapply(conditional_patterns, function(x) x$count))
-  min_count <- ceiling(min_support * total_count)
+
+  # Use the same support threshold as the main FP-tree (relative to original transactions)
+  min_count <- ceiling(min_support * n_transactions)
   
   frequent_items <- names(item_counts[item_counts >= min_count])
   

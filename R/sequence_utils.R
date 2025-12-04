@@ -401,12 +401,17 @@ compute_significance_stats <- function(df, n_sequences, n_states,
   # Lift
   df$lift <- round(df$support / df$expected_prob, 2)
   
-  # Chi-square test
+  # Chi-square test (only use when expected counts >= 5)
   df$chi_square <- sapply(seq_len(nrow(df)), function(i) {
     if (!"sequences_containing" %in% names(df)) return(NA)
-    obs <- c(df$sequences_containing[i], n_sequences - df$sequences_containing[i])
-    exp <- c(n_sequences * df$expected_prob[i], n_sequences * (1 - df$expected_prob[i]))
-    if (all(exp > 0)) round(sum((obs - exp)^2 / exp), 2) else NA
+    exp_count <- n_sequences * df$expected_prob[i]
+    if (exp_count >= 5 && (n_sequences - exp_count) >= 5) {
+      obs <- c(df$sequences_containing[i], n_sequences - df$sequences_containing[i])
+      exp <- c(exp_count, n_sequences - exp_count)
+      round(sum((obs - exp)^2 / exp), 2)
+    } else {
+      NA  # Chi-square not appropriate for low expected counts
+    }
   })
   
   # Z-score
@@ -417,12 +422,28 @@ compute_significance_stats <- function(df, n_sequences, n_states,
     if (se > 0) round((prop - exp_prob) / se, 2) else NA
   })
   
-  # Binomial test p-values
+  # Binomial test p-values (use when appropriate)
   df$p_value <- sapply(seq_len(nrow(df)), function(i) {
     if (!"sequences_containing" %in% names(df)) return(NA)
     tryCatch({
-      stats::binom.test(df$sequences_containing[i], n_sequences,
-                        df$expected_prob[i], alternative = "greater")$p.value
+      # Only use binomial test if expected count >= 5 and <= n-5
+      exp_count <- n_sequences * df$expected_prob[i]
+      if (exp_count >= 5 && exp_count <= n_sequences - 5) {
+        stats::binom.test(df$sequences_containing[i], n_sequences,
+                          df$expected_prob[i], alternative = "greater")$p.value
+      } else {
+        # For extreme probabilities, use normal approximation or Fisher exact test
+        # For now, use z-test p-value as approximation
+        prop <- df$support[i]
+        exp_prob <- df$expected_prob[i]
+        se <- sqrt(exp_prob * (1 - exp_prob) / n_sequences)
+        if (se > 0) {
+          z <- (prop - exp_prob) / se
+          1 - stats::pnorm(z)  # One-tailed p-value
+        } else {
+          NA
+        }
+      }
     }, error = function(e) NA)
   })
   
