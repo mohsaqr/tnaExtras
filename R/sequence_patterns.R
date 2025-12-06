@@ -37,8 +37,10 @@
 #' @param test_significance Whether to compute statistical significance (default: TRUE)
 #' @param correction Multiple testing correction (default: "fdr")
 #' @param alpha Significance level (default: 0.05)
-#' @param start_state Filter patterns starting with this state
-#' @param end_state Filter patterns ending with this state
+#' @param start_state (Deprecated) Filter patterns starting with this state. Use \code{starts_with} instead.
+#' @param end_state (Deprecated) Filter patterns ending with this state. Use \code{ends_with} instead.
+#' @param starts_with Filter patterns starting with this state (recommended over \code{start_state})
+#' @param ends_with Filter patterns ending with this state (recommended over \code{end_state})
 #' @param contains_state Filter patterns containing this state
 #' @param max_patterns Maximum patterns to return (default: NULL, return all)
 #' @param fast_mode Enable optimizations for large datasets (default: TRUE)
@@ -46,6 +48,21 @@
 #'
 #' @return Object of class "sequence_patterns" with patterns, statistics, and metadata
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#' # Filter patterns starting with "plan"
+#' results <- discover_patterns(data, starts_with = "plan")
+#'
+#' # Filter patterns ending with "consensus"
+#' results <- discover_patterns(data, ends_with = "consensus")
+#'
+#' # Filter patterns with both start and end
+#' results <- discover_patterns(data,
+#'   starts_with = "plan",
+#'   ends_with = "consensus"
+#' )
+#' }
 discover_patterns <- function(data,
                               type = "ngrams",
                               pattern = NULL,
@@ -60,11 +77,16 @@ discover_patterns <- function(data,
                               alpha = 0.05,
                               start_state = NULL,
                               end_state = NULL,
+                              starts_with = NULL,
+                              ends_with = NULL,
                               contains_state = NULL,
                               max_patterns = NULL,
                               fast_mode = TRUE,
                               verbose = TRUE) {
-  
+  # Handle parameter aliases (new parameters take precedence)
+  if (!is.null(starts_with)) start_state <- starts_with
+  if (!is.null(ends_with)) end_state <- ends_with
+
   # Validate inputs
   validate_sequence_params(list(
     min_length = min_length, max_length = max_length,
@@ -87,26 +109,34 @@ discover_patterns <- function(data,
   if (!is.null(pattern)) {
     # Targeted search mode
     if (verbose) cat("Searching for pattern:", pattern, "\n")
-    search_result <- search_pattern_optimized(sequences, pattern, n_sequences, n_states,
-                                              test_significance, correction, alpha, fast_mode)
+    search_result <- search_pattern_optimized(
+      sequences, pattern, n_sequences, n_states,
+      test_significance, correction, alpha, fast_mode
+    )
     patterns_df <- search_result$patterns
     instances_df <- search_result$instances
   } else {
     # Discovery mode - choose optimized algorithm
     patterns_df <- switch(type,
       "ngrams" = extract_ngrams_optimized(sequences, min_length, max_length, n_sequences, fast_mode, verbose),
-      "gapped" = extract_gapped_optimized(sequences, seq_data$all_states, min_gap, max_gap,
-                                          n_sequences, min_support, min_count, fast_mode, verbose),
-      "abstract" = extract_abstract_optimized(sequences, seq_data$all_states, min_gap, max_gap,
-                                              n_sequences, min_support, min_count, fast_mode, verbose),
+      "gapped" = extract_gapped_optimized(
+        sequences, seq_data$all_states, min_gap, max_gap,
+        n_sequences, min_support, min_count, fast_mode, verbose
+      ),
+      "abstract" = extract_abstract_optimized(
+        sequences, seq_data$all_states, min_gap, max_gap,
+        n_sequences, min_support, min_count, fast_mode, verbose
+      ),
       "full" = extract_full_optimized(sequences, n_sequences, fast_mode, verbose),
       stop("Invalid type. Choose 'ngrams', 'gapped', 'abstract', or 'full'.")
     )
   }
 
   # Apply filters efficiently
-  patterns_df <- apply_filters_optimized(patterns_df, min_support, min_count,
-                                         start_state, end_state, contains_state)
+  patterns_df <- apply_filters_optimized(
+    patterns_df, min_support, min_count,
+    start_state, end_state, contains_state
+  )
 
   # Limit output if requested
   if (!is.null(max_patterns) && nrow(patterns_df) > max_patterns) {
@@ -116,8 +146,10 @@ discover_patterns <- function(data,
   # Compute statistics if requested
   if (test_significance && nrow(patterns_df) > 0) {
     if (verbose) cat("Computing significance statistics...\n")
-    patterns_df <- compute_significance_stats(patterns_df, n_sequences, n_states,
-                                              correction, alpha)
+    patterns_df <- compute_significance_stats(
+      patterns_df, n_sequences, n_states,
+      correction, alpha
+    )
   }
 
   # Standardize and return
@@ -129,8 +161,11 @@ discover_patterns <- function(data,
       n_sequences = n_sequences,
       n_states = n_states,
       n_patterns = nrow(patterns_df),
-      n_significant = if ("significant" %in% names(patterns_df))
-        sum(patterns_df$significant, na.rm = TRUE) else NA,
+      n_significant = if ("significant" %in% names(patterns_df)) {
+        sum(patterns_df$significant, na.rm = TRUE)
+      } else {
+        NA
+      },
       type = if (!is.null(pattern)) "search" else type,
       algorithm = if (fast_mode) "optimized" else "standard"
     ),
@@ -209,7 +244,7 @@ extract_ngrams_optimized <- function(sequences, min_length, max_length, n_sequen
         }
 
         # Find existing pattern or add new one
-        existing <- which(ngram_vec[1:(idx-1)] == ng)
+        existing <- which(ngram_vec[1:(idx - 1)] == ng)
         if (length(existing) > 0) {
           count_vec[existing[1]] <- count_vec[existing[1]] + count
           if (fast_mode) {
@@ -228,10 +263,10 @@ extract_ngrams_optimized <- function(sequences, min_length, max_length, n_sequen
   }
 
   # Trim unused space
-  ngram_vec <- ngram_vec[1:(idx-1)]
-  count_vec <- count_vec[1:(idx-1)]
+  ngram_vec <- ngram_vec[1:(idx - 1)]
+  count_vec <- count_vec[1:(idx - 1)]
   if (fast_mode) {
-    seq_vec <- seq_vec[1:(idx-1)]
+    seq_vec <- seq_vec[1:(idx - 1)]
   }
 
   # Build data frame
@@ -321,9 +356,11 @@ extract_gapped_optimized <- function(sequences, all_states, min_gap, max_gap,
   }
 
   # Combine results
-  if (idx == 1) return(create_empty_patterns_df())
+  if (idx == 1) {
+    return(create_empty_patterns_df())
+  }
 
-  patterns_df <- do.call(rbind, patterns_list[1:(idx-1)])
+  patterns_df <- do.call(rbind, patterns_list[1:(idx - 1)])
   patterns_df$support <- round(patterns_df$sequences_containing / n_sequences, 4)
   patterns_df$proportion <- round(patterns_df$count / sum(patterns_df$count), 4)
 
@@ -356,27 +393,35 @@ extract_abstract_optimized <- function(sequences, all_states, min_gap, max_gap,
       if (fast_mode) {
         positions <- pos_cache[[state]]
         count <- sum(sapply(positions, function(pos) {
-          if (length(pos) < 2) return(0)
+          if (length(pos) < 2) {
+            return(0)
+          }
           sum(sapply(seq_len(length(pos) - 1), function(i) {
-            any(pos[(i+1):length(pos)] - pos[i] - 1 == gap)
+            any(pos[(i + 1):length(pos)] - pos[i] - 1 == gap)
           }))
         }))
         seqs_containing <- sum(sapply(positions, function(pos) {
-          if (length(pos) < 2) return(0)
+          if (length(pos) < 2) {
+            return(0)
+          }
           any(sapply(seq_len(length(pos) - 1), function(i) {
-            any(pos[(i+1):length(pos)] - pos[i] - 1 == gap)
+            any(pos[(i + 1):length(pos)] - pos[i] - 1 == gap)
           }))
         }))
       } else {
-        count <- 0; seqs_containing <- 0
+        count <- 0
+        seqs_containing <- 0
         for (seq in sequences) {
           positions <- which(seq == state)
           if (length(positions) < 2) next
           seq_matches <- 0
           for (i in seq_len(length(positions) - 1)) {
-            if (any(positions[(i+1):length(positions)] - positions[i] - 1 == gap)) seq_matches <- seq_matches + 1
+            if (any(positions[(i + 1):length(positions)] - positions[i] - 1 == gap)) seq_matches <- seq_matches + 1
           }
-          if (seq_matches > 0) { count <- count + seq_matches; seqs_containing <- seqs_containing + 1 }
+          if (seq_matches > 0) {
+            count <- count + seq_matches
+            seqs_containing <- seqs_containing + 1
+          }
         }
       }
 
@@ -400,14 +445,18 @@ extract_abstract_optimized <- function(sequences, all_states, min_gap, max_gap,
     for (rep_len in 2:min(5, max_gap + 2)) {
       pattern_name <- paste(rep(state, rep_len), collapse = "->")
 
-      count <- 0; seqs_containing <- 0
+      count <- 0
+      seqs_containing <- 0
       for (seq in sequences) {
         if (length(seq) < rep_len) next
         seq_matches <- 0
         for (i in seq_len(length(seq) - rep_len + 1)) {
           if (all(seq[i:(i + rep_len - 1)] == state)) seq_matches <- seq_matches + 1
         }
-        if (seq_matches > 0) { count <- count + seq_matches; seqs_containing <- seqs_containing + 1 }
+        if (seq_matches > 0) {
+          count <- count + seq_matches
+          seqs_containing <- seqs_containing + 1
+        }
       }
 
       if (count >= min_count && seqs_containing / n_sequences >= min_support) {
@@ -425,9 +474,11 @@ extract_abstract_optimized <- function(sequences, all_states, min_gap, max_gap,
   }
 
   # Combine results
-  if (idx == 1) return(create_empty_patterns_df())
+  if (idx == 1) {
+    return(create_empty_patterns_df())
+  }
 
-  patterns_df <- do.call(rbind, patterns_list[1:(idx-1)])
+  patterns_df <- do.call(rbind, patterns_list[1:(idx - 1)])
   patterns_df$support <- round(patterns_df$sequences_containing / n_sequences, 4)
   patterns_df$proportion <- round(patterns_df$count / sum(patterns_df$count), 4)
 
@@ -461,9 +512,9 @@ extract_full_optimized <- function(sequences, n_sequences, fast_mode, verbose) {
 #' @keywords internal
 search_pattern_optimized <- function(sequences, pattern, n_sequences, n_states,
                                      test_significance, correction, alpha, fast_mode) {
-
   parts <- strsplit(gsub(" ", "", pattern), "->")[[1]]
-  count <- 0; seqs_containing <- 0
+  count <- 0
+  seqs_containing <- 0
   instance_list <- character(0)
   instance_seqs <- list()
 
@@ -507,7 +558,8 @@ search_pattern_optimized <- function(sequences, pattern, n_sequences, n_states,
   }
 
   instances_df <- aggregate_instances(instance_list, instance_seqs, n_sequences, n_states,
-                                      schema = NULL, test_significance, correction, alpha)
+    schema = NULL, test_significance, correction, alpha
+  )
 
   return(list(patterns = patterns_df, instances = instances_df))
 }
@@ -532,14 +584,17 @@ find_pattern_matches_optimized <- function(seq, parts) {
   }
 
   len <- length(parts)
-  if (length(seq) < len) return(matches)
+  if (length(seq) < len) {
+    return(matches)
+  }
 
   for (start in seq_len(length(seq) - len + 1)) {
     sub_seq <- seq[start:(start + len - 1)]
     matched <- TRUE
     for (i in seq_len(len)) {
       if (parts[i] != "*" && parts[i] != sub_seq[i]) {
-        matched <- FALSE; break
+        matched <- FALSE
+        break
       }
     }
     if (matched) matches[[length(matches) + 1]] <- sub_seq
@@ -551,7 +606,8 @@ find_pattern_matches_optimized <- function(seq, parts) {
 #' Optimized multi-wildcard search
 #' @keywords internal
 search_multi_wildcard_optimized <- function(sequences, parts, n_sequences) {
-  count <- 0; seqs_containing <- 0
+  count <- 0
+  seqs_containing <- 0
   instances <- character(0)
   seqs <- list()
 
@@ -590,7 +646,9 @@ search_multi_wildcard_optimized <- function(sequences, parts, n_sequences) {
 #' @keywords internal
 apply_filters_optimized <- function(df, min_support, min_count,
                                     start_state, end_state, contains_state) {
-  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0) return(df)
+  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0) {
+    return(df)
+  }
 
   keep <- rep(TRUE, nrow(df))
 
@@ -603,7 +661,9 @@ apply_filters_optimized <- function(df, min_support, min_count,
   }
 
   df <- df[keep, , drop = FALSE]
-  if (nrow(df) == 0) return(df)
+  if (nrow(df) == 0) {
+    return(df)
+  }
 
   if (!is.null(start_state) || !is.null(end_state) || !is.null(contains_state)) {
     df <- filter_patterns_by_text(df, start_state, end_state, contains_state)
@@ -620,49 +680,52 @@ apply_filters_optimized <- function(df, min_support, min_count,
 #' @keywords internal
 extract_ngrams_vectorized <- function(seq_data, min_n, max_n, verbose) {
   if (verbose) cat("Extracting n-grams (vectorized)...\n")
-  
+
   sequences <- seq_data$sequences
   n_seqs <- seq_data$n_sequences
   all_patterns <- list()
   all_seqs <- list()
-  
+
   for (n in min_n:max_n) {
     # For each sequence, get n-grams efficiently
     # Lapply returns a list of character vectors (n-grams found in each sequence)
     ngrams_per_seq <- lapply(seq_along(sequences), function(i) {
       seq <- sequences[[i]]
-      if (length(seq) < n) return(NULL)
-      
+      if (length(seq) < n) {
+        return(NULL)
+      }
+
       # Use embed to get matrix of lags
       # m cols: x[n], x[n-1], ... x[1]
       m <- stats::embed(seq, n)
-      
+
       # We want x[1]->x[2]->...
       # So we paste columns in reverse order: ncol(m):1
       # Using do.call(paste) is much faster than apply(..., 1, paste)
       cols <- lapply(seq_len(ncol(m)), function(j) m[, ncol(m) - j + 1])
       grams <- do.call(paste, c(cols, sep = "->"))
-      
+
       return(list(grams = unique(grams), idx = i))
     })
-    
+
     # Aggregate counts and sequences
     # Unlist effectively
     valid <- ngrams_per_seq[!sapply(ngrams_per_seq, is.null)]
-    
+
     if (length(valid) > 0) {
       # Flatten: pattern -> seq_idx
       # pattern_vec: all patterns found
       # idx_vec: corresponding sequence index for each pattern instance
       pattern_vec <- unlist(lapply(valid, `[[`, "grams"))
-      idx_vec <- rep(unlist(lapply(valid, `[[`, "idx")), 
-                     times = sapply(valid, function(x) length(x$grams)))
-      
+      idx_vec <- rep(unlist(lapply(valid, `[[`, "idx")),
+        times = sapply(valid, function(x) length(x$grams))
+      )
+
       if (length(pattern_vec) > 0) {
-        # Using aggregate is okay, or data.table/dplyr if allowed. 
+        # Using aggregate is okay, or data.table/dplyr if allowed.
         # Pure R: split indices by pattern
         seq_lists <- split(idx_vec, pattern_vec)
-        
+
         # Store
         for (p in names(seq_lists)) {
           if (is.null(all_patterns[[p]])) {
@@ -677,45 +740,47 @@ extract_ngrams_vectorized <- function(seq_data, min_n, max_n, verbose) {
       }
     }
   }
-  
+
   # RE-IMPLEMENTATION FOR COUNT + SUPPORT
   # To get both count (total occurrences) and support (sequences containing),
   # we need all instances.
-  
+
   final_list <- list()
-  
+
   for (n in min_n:max_n) {
     if (verbose) cat("  Processing", n, "-grams...\n")
-    
+
     grams_list <- lapply(sequences, function(seq) {
-      if (length(seq) < n) return(NULL)
+      if (length(seq) < n) {
+        return(NULL)
+      }
       m <- stats::embed(seq, n)
       cols <- lapply(seq_len(ncol(m)), function(j) m[, ncol(m) - j + 1])
       do.call(paste, c(cols, sep = "->"))
     })
-    
+
     # All instances
     all_instances <- unlist(grams_list)
     if (length(all_instances) == 0) next
-    
+
     # Total counts
     counts <- table(all_instances)
-    
+
     # Support (sequences containing)
     # We need to know which sequence each instance came from
     seq_ids <- rep(seq_along(sequences), times = sapply(grams_list, length))
-    
+
     # Data frame of pattern + seq_id
     df <- data.frame(pattern = all_instances, id = seq_ids, stringsAsFactors = FALSE)
-    
+
     # Unique sequences per pattern
     # Split id by pattern -> count unique
     # Fast way: tapply
     seqs_containing <- tapply(df$id, df$pattern, function(x) length(unique(x)))
-    
+
     # Combine
     pats <- names(counts)
-    
+
     current_df <- data.frame(
       pattern = pats,
       length = n,
@@ -723,10 +788,12 @@ extract_ngrams_vectorized <- function(seq_data, min_n, max_n, verbose) {
       sequences_containing = as.integer(seqs_containing[pats]),
       stringsAsFactors = FALSE
     )
-    final_list[[length(final_list)+1]] <- current_df
+    final_list[[length(final_list) + 1]] <- current_df
   }
-  
-  if (length(final_list) == 0) return(create_empty_patterns_df())
+
+  if (length(final_list) == 0) {
+    return(create_empty_patterns_df())
+  }
   do.call(rbind, final_list)
 }
 
@@ -734,41 +801,43 @@ extract_ngrams_vectorized <- function(seq_data, min_n, max_n, verbose) {
 #' @keywords internal
 extract_gapped_vectorized <- function(seq_data, min_gap, max_gap, verbose) {
   if (verbose) cat("Extracting gapped patterns (vectorized)...\n")
-  
+
   sequences <- seq_data$sequences
   final_list <- list()
-  
+
   for (gap in min_gap:max_gap) {
     if (verbose) cat("  Gap size:", gap, "\n")
-    
+
     sep_str <- paste0("->", paste(rep("*", gap), collapse = "->"), "->")
-    
+
     # For each sequence, extract pairs at lag = gap + 1
     # x[i] and x[i + gap + 1]
     pairs_list <- lapply(sequences, function(seq) {
       L <- length(seq)
-      if (L < gap + 2) return(NULL)
-      
+      if (L < gap + 2) {
+        return(NULL)
+      }
+
       # Start positions: 1 to L - gap - 1
       start_idx <- 1:(L - gap - 1)
       end_idx <- start_idx + gap + 1
-      
+
       starts <- seq[start_idx]
       ends <- seq[end_idx]
-      
+
       paste(starts, ends, sep = sep_str)
     })
-    
+
     all_pairs <- unlist(pairs_list)
     if (length(all_pairs) == 0) next
-    
+
     counts <- table(all_pairs)
     seq_ids <- rep(seq_along(sequences), times = sapply(pairs_list, length))
     df <- data.frame(pattern = all_pairs, id = seq_ids, stringsAsFactors = FALSE)
     seqs_containing <- tapply(df$id, df$pattern, function(x) length(unique(x)))
-    
+
     pats <- names(counts)
-    final_list[[length(final_list)+1]] <- data.frame(
+    final_list[[length(final_list) + 1]] <- data.frame(
       pattern = pats,
       length = gap + 2,
       count = as.integer(counts[pats]),
@@ -776,8 +845,10 @@ extract_gapped_vectorized <- function(seq_data, min_gap, max_gap, verbose) {
       stringsAsFactors = FALSE
     )
   }
-  
-  if (length(final_list) == 0) return(create_empty_patterns_df())
+
+  if (length(final_list) == 0) {
+    return(create_empty_patterns_df())
+  }
   do.call(rbind, final_list)
 }
 
@@ -785,22 +856,22 @@ extract_gapped_vectorized <- function(seq_data, min_gap, max_gap, verbose) {
 #' @keywords internal
 search_pattern_vectorized <- function(seq_data, pattern, verbose) {
   if (verbose) cat("Searching for pattern:", pattern, "\n")
-  
+
   # Normalize pattern
   parts <- if (length(pattern) > 1) pattern else strsplit(pattern, "->")[[1]]
   pattern_str <- paste(parts, collapse = "->")
-  
+
   # Prepare regex-like or position check?
   # Vectorized match finding is tricky for general wildcards in R without RegEx
   # But RegEx on "A->B->C" string representation is dangerous if states contain separators.
   # Assuming standard states.
-  
+
   # Check if multi-wildcard
   is_multi <- "**" %in% parts
-  
+
   sequences <- seq_data$sequences
   n_seqs <- seq_data$n_sequences
-  
+
   matches_list <- lapply(seq_along(sequences), function(i) {
     seq <- sequences[[i]]
     matches <- find_pattern_matches(seq, parts) # Reusing the robust matcher
@@ -812,34 +883,38 @@ search_pattern_vectorized <- function(seq_data, pattern, verbose) {
       NULL
     }
   })
-  
+
   all_inst <- unlist(matches_list)
-  if (length(all_inst) == 0) return(create_empty_patterns_df())
-  
+  if (length(all_inst) == 0) {
+    return(create_empty_patterns_df())
+  }
+
   # Filter NAs
   all_inst <- all_inst[!grepl("NA", all_inst)]
-  if (length(all_inst) == 0) return(create_empty_patterns_df())
-  
+  if (length(all_inst) == 0) {
+    return(create_empty_patterns_df())
+  }
+
   counts <- table(all_inst)
   seq_ids <- rep(seq_along(sequences), times = sapply(matches_list, length))
   df <- data.frame(pattern = all_inst, id = seq_ids, stringsAsFactors = FALSE)
-  
+
   # Filter df for NAs again just in case
   df <- df[!grepl("NA", df$pattern), ]
-  
+
   # For specific pattern search, we report the pattern itself as the main row,
   # but user might want instances.
-  # Standard behavior: return the search pattern as the 'pattern', 
+  # Standard behavior: return the search pattern as the 'pattern',
   # and maybe instances in a separate attribute?
-  # explore_patterns returns a DF of patterns. 
+  # explore_patterns returns a DF of patterns.
   # If searching "A->*->B", we might find "A->C->B" and "A->D->B".
   # Should we list "A->*->B" with total count? Or list the specific instances?
   # find_patterns returned both.
   # Let's return the specific instances found, as they are the "patterns" discovered matching the criteria.
-  
+
   seqs_containing <- tapply(df$id, df$pattern, function(x) length(unique(x)))
   pats <- names(counts)
-  
+
   data.frame(
     pattern = pats,
     length = length(parts), # Approximate length
@@ -860,7 +935,7 @@ extract_full_sequences <- function(seq_data, min_support, min_count, verbose) {
   sequences <- seq_data$sequences
   seq_strings <- sapply(sequences, paste, collapse = "->")
   counts <- table(seq_strings)
-  
+
   data.frame(
     pattern = names(counts),
     length = sapply(strsplit(as.character(names(counts)), "->"), length),
@@ -876,13 +951,13 @@ extract_abstract_patterns <- function(seq_data, min_gap, max_gap,
                                       min_support, min_count, verbose) {
   # Keeping logic but ensuring it returns compatible DF
   if (verbose) cat("Extracting abstract patterns...\n")
-  
+
   sequences <- seq_data$sequences
   n_sequences <- seq_data$n_sequences
   all_states <- seq_data$all_states
-  
+
   patterns_list <- list()
-  
+
   # Helper to check threshold and add pattern
   add_if_valid <- function(name, count, seqs_n, type, len) {
     if (count >= min_count && seqs_n / n_sequences >= min_support) {
@@ -892,7 +967,7 @@ extract_abstract_patterns <- function(seq_data, min_gap, max_gap,
       )
     }
   }
-  
+
   # 1. Returns (A->*->A) - Optimized inner loop
   if (verbose) cat("  Detecting returns...\n")
   for (state in all_states) {
@@ -901,7 +976,8 @@ extract_abstract_patterns <- function(seq_data, min_gap, max_gap,
     # Vectorization across sequences for specific state is hard due to variable length.
     # Keeping optimized R loop.
     for (gap in min_gap:max_gap) {
-      count <- 0; seqs_containing <- 0
+      count <- 0
+      seqs_containing <- 0
       for (seq in sequences) {
         # Vectorized check within sequence
         pos <- which(seq == state)
@@ -912,55 +988,61 @@ extract_abstract_patterns <- function(seq_data, min_gap, max_gap,
         # outer(pos, pos, "-")
         # We need pos[j] - pos[i] == gap + 1
         has_gap <- any(outer(pos, pos, "-") == (gap + 1))
-        
+
         if (has_gap) {
-           # Count occurrences: sum(outer(...) == gap+1)
-           n_matches <- sum(outer(pos, pos, "-") == (gap + 1))
-           count <- count + n_matches
-           seqs_containing <- seqs_containing + 1
+          # Count occurrences: sum(outer(...) == gap+1)
+          n_matches <- sum(outer(pos, pos, "-") == (gap + 1))
+          count <- count + n_matches
+          seqs_containing <- seqs_containing + 1
         }
       }
       add_if_valid(paste0(state, "->(*", gap, ")->", state), count, seqs_containing, "return", gap + 2)
     }
   }
-  
+
   # 2. Repetitions (A->A)
   if (verbose) cat("  Detecting repetitions...\n")
   for (rep_len in 2:min(5, max_gap + 2)) {
-     # Can we do this without looping states?
-     # Embed -> check if all columns equal
-     instances <- lapply(sequences, function(seq) {
-       if(length(seq) < rep_len) return(NULL)
-       m <- stats::embed(seq, rep_len)
-       # Check rows where all values are equal
-       # rowVars(m) == 0? or apply unique
-       is_rep <- apply(m, 1, function(r) length(unique(r)) == 1)
-       if(!any(is_rep)) return(NULL)
-       m[is_rep, 1] # The state
-     })
-     
-     # Aggregate
-     all_reps <- unlist(instances)
-     if(length(all_reps) > 0) {
-       tbl <- table(all_reps)
-       for(s in names(tbl)) {
-         # Need sequences containing... roughly approximating or recounting
-         # For perfect accuracy we need seq ids.
-         # Re-use vectorized approach style if strict.
-         # For simplicity here, just using the count/support from list
-         n_seq_cont <- sum(sapply(instances, function(x) s %in% x))
-         add_if_valid(paste(rep(s, rep_len), collapse="->"), tbl[[s]], n_seq_cont, "repetition", rep_len)
-       }
-     }
+    # Can we do this without looping states?
+    # Embed -> check if all columns equal
+    instances <- lapply(sequences, function(seq) {
+      if (length(seq) < rep_len) {
+        return(NULL)
+      }
+      m <- stats::embed(seq, rep_len)
+      # Check rows where all values are equal
+      # rowVars(m) == 0? or apply unique
+      is_rep <- apply(m, 1, function(r) length(unique(r)) == 1)
+      if (!any(is_rep)) {
+        return(NULL)
+      }
+      m[is_rep, 1] # The state
+    })
+
+    # Aggregate
+    all_reps <- unlist(instances)
+    if (length(all_reps) > 0) {
+      tbl <- table(all_reps)
+      for (s in names(tbl)) {
+        # Need sequences containing... roughly approximating or recounting
+        # For perfect accuracy we need seq ids.
+        # Re-use vectorized approach style if strict.
+        # For simplicity here, just using the count/support from list
+        n_seq_cont <- sum(sapply(instances, function(x) s %in% x))
+        add_if_valid(paste(rep(s, rep_len), collapse = "->"), tbl[[s]], n_seq_cont, "repetition", rep_len)
+      }
+    }
   }
-  
+
   # 3. Oscillations (A->B->A->B) & 4. Progressions
   # Keeping placeholder logic or basic implementation for brevity in this file
   # Assuming user focused on unification/speed of main types.
   # ... (Keep logic or simplify) ...
-  
-  if (length(patterns_list) == 0) return(create_empty_patterns_df())
-  
+
+  if (length(patterns_list) == 0) {
+    return(create_empty_patterns_df())
+  }
+
   df <- do.call(rbind, lapply(patterns_list, as.data.frame))
   return(df)
 }
@@ -1014,24 +1096,131 @@ summary.sequence_patterns <- function(object, ...) {
   }
 }
 
+
+#' Plot Sequence Patterns
+#'
+#' Visualizes discovered sequence patterns as a bar plot showing pattern frequencies.
+#' Automatically handles long pattern names by truncating and adjusting plot margins.
+#'
+#' @param x An object of class \code{sequence_patterns} returned by \code{\link{discover_patterns}}
+#' @param type Character string specifying plot type. Currently only \code{"patterns"} is supported.
+#'   Default: \code{"patterns"}
+#' @param top_n Integer specifying the number of top patterns to display, ordered by count.
+#'   Default: 20
+#' @param ... Additional arguments passed to \code{\link[graphics]{barplot}} (currently unused)
+#'
+#' @return Invisibly returns NULL. Called for its side effect of creating a plot.
+#'
+#' @details
+#' The function creates a bar plot of the most frequent patterns. Long pattern names
+#' (> 40 characters) are automatically truncated with "..." for better readability.
+#' The plot margins are adjusted to accommodate rotated labels.
+#'
+#' @seealso
+#' \code{\link{discover_patterns}} for discovering patterns,
+#' \code{\link{print.sequence_patterns}} for printing pattern summaries,
+#' \code{\link{summary.sequence_patterns}} for detailed summaries
+#'
+#' @examples
+#' \dontrun{
+#' # Discover patterns
+#' data(group_regulation, package = "tna")
+#' results <- discover_patterns(group_regulation, type = "ngrams")
+#'
+#' # Plot top 15 patterns
+#' plot(results, type = "patterns", top_n = 15)
+#'
+#' # Plot top 20 patterns (default)
+#' plot(results)
+#' }
+#'
 #' @export
-plot.sequence_patterns <- function(x, top_n = 20, ...) {
-  if (nrow(x$patterns) == 0) return(message("No patterns"))
-  data <- head(x$patterns[order(x$patterns$count, decreasing = TRUE), ], top_n)
-  graphics::barplot(data$count, names.arg = data$pattern, las = 2, col = "steelblue",
-                    main = paste("Top", nrow(data), "Patterns"))
+plot.sequence_patterns <- function(x, type = "patterns", top_n = 20, ...) {
+  if (nrow(x$patterns) == 0) {
+    return(message("No patterns to plot"))
+  }
+
+  # Support type parameter for consistency with other plot functions
+  if (type == "patterns" || type == "pattern") {
+    data <- head(x$patterns[order(x$patterns$count, decreasing = TRUE), ], top_n)
+
+    # Create better labels (truncate long patterns)
+    labels <- data$pattern
+    max_label_length <- 40
+    labels <- ifelse(nchar(labels) > max_label_length,
+      paste0(substr(labels, 1, max_label_length), "..."),
+      labels
+    )
+
+    # Set up margins for long labels
+    old_par <- graphics::par(mar = c(8, 4, 4, 2) + 0.1)
+    on.exit(graphics::par(old_par))
+
+    graphics::barplot(data$count,
+      names.arg = labels,
+      las = 2,
+      col = "steelblue",
+      main = paste("Top", nrow(data), "Patterns"),
+      ylab = "Count",
+      cex.names = 0.7
+    )
+  } else {
+    warning("Unknown plot type: ", type, ". Defaulting to 'patterns'")
+    plot.sequence_patterns(x, type = "patterns", top_n = top_n, ...)
+  }
 }
 
-# Helpers
+
+# Helper Functions
+
+#' Extract Significant Patterns
+#'
+#' Filters sequence patterns to return only those marked as statistically significant.
+#'
+#' @param x An object of class \code{sequence_patterns} returned by \code{\link{discover_patterns}}
+#'
+#' @return A data frame containing only significant patterns, or NULL if no significance
+#'   testing was performed or no patterns are significant
+#'
+#' @examples
+#' \dontrun{
+#' results <- discover_patterns(data, test_significance = TRUE)
+#' sig_patterns <- significant_patterns(results)
+#' }
+#'
 #' @export
 significant_patterns <- function(x) {
   if ("significant" %in% names(x$patterns)) x$patterns[x$patterns$significant, ] else NULL
 }
 
+#' Extract Top Sequences
+#'
+#' Returns the top N patterns ordered by frequency/count.
+#'
+#' @param x An object of class \code{sequence_patterns} returned by \code{\link{discover_patterns}}
+#' @param top_n Integer specifying number of top patterns to return. Default: 10
+#'
+#' @return A data frame containing the top N patterns
+#'
+#' @examples
+#' \dontrun{
+#' results <- discover_patterns(data)
+#' top10 <- top_sequences(results, top_n = 10)
+#' }
+#'
 #' @export
-top_sequences <- function(x, top_n=10) head(x$patterns, top_n)
+top_sequences <- function(x, top_n = 10) head(x$patterns, top_n)
 
+#' Filter Patterns
+#'
+#' Extracts the patterns data frame from a sequence_patterns object.
+#'
+#' @param x An object of class \code{sequence_patterns}
+#' @param ... Additional arguments (currently unused, for future extensibility)
+#'
+#' @return A data frame of patterns
+#'
 #' @export
-filter_patterns <- function(x, ...) x$patterns # simplified
+filter_patterns <- function(x, ...) x$patterns
 
 cat("Unified sequence patterns loaded.\n")

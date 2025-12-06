@@ -1,0 +1,74 @@
+---
+title: "Pattern Discovery with starts_with and ends_with"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tnaExtras)
+library(tna)
+```
+
+## Load Data
+
+```{r}
+data(group_regulation, package = "tna")
+```
+
+## Example 1: Patterns Starting with "plan"
+
+```{r}
+result1 <- discover_patterns(group_regulation,
+    type = "ngrams",
+    starts_with = "plan",
+    min_support = 0.1,
+    max_length = 4,
+    verbose = FALSE
+)
+print(result1)
+plot(result1, type = "patterns", top_n = 15)
+```
+
+## Example 2: Patterns Ending with "consensus"
+
+```{r}
+result2 <- discover_patterns(group_regulation,
+    type = "ngrams",
+    ends_with = "consensus",
+    min_support = 0.1,
+    max_length = 4,
+    verbose = FALSE
+)
+print(result2)
+plot(result2, type = "patterns", top_n = 15)
+```
+
+## Example 3: Patterns from "plan" to "consensus"
+
+```{r}
+result3 <- discover_patterns(group_regulation,
+    type = "ngrams",
+    starts_with = "plan",
+    ends_with = "consensus",
+    min_support = 0.05,
+    max_length = 5,
+    verbose = FALSE
+)
+print(result3)
+plot(result3, type = "patterns", top_n = 20)
+```
+
+## Example 4: Gapped Patterns
+
+```{r}
+result4 <- discover_patterns(group_regulation,
+    type = "gapped",
+    starts_with = "plan",
+    min_support = 0.1,
+    min_gap = 1,
+    max_gap = 2,
+    verbose = FALSE
+)
+print(result4)
+plot(result4, type = "patterns", top_n = 15)
+```

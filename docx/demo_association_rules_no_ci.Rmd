@@ -1,0 +1,56 @@
+---
+title: "Association Rules without Bootstrap"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tnaExtras)
+library(tna)
+```
+
+## Load Data
+
+```{r}
+data(group_regulation, package = "tna")
+```
+
+## Standard Apriori
+
+```{r}
+results <- apriori_rules(
+    transactions = group_regulation,
+    min_support = 0.1,
+    min_confidence = 0.6,
+    min_lift = 1.0,
+    max_length = 5,
+    verbose = FALSE
+)
+```
+
+## Results
+
+```{r}
+print(results)
+```
+
+## Top 10 Rules by Lift
+
+```{r}
+top10 <- head(results$rules[order(results$rules$lift, decreasing = TRUE), ], 10)
+for (i in 1:nrow(top10)) {
+    cat(sprintf("\n%d. %s => %s\n", i, top10$antecedent[i], top10$consequent[i]))
+    cat(sprintf(
+        "   Support: %.3f, Confidence: %.3f, Lift: %.3f\n",
+        top10$support[i], top10$confidence[i], top10$lift[i]
+    ))
+}
+```
+
+## Visualizations
+
+```{r}
+plot(results, type = "rules", top_n = 15)
+plot_rules_network(results, top_n = 15)
+plot_rules_quality(results)
+```

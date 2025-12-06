@@ -881,3 +881,296 @@ head.association_rules <- function(x, n = 6, ...) {
 
   return(invisible(top_rules))
 }
+
+# ==============================================================================
+# BOOTSTRAPPED ASSOCIATION RULES
+# ==============================================================================
+
+#' Bootstrapped Association Rule Mining
+#'
+#' Performs association rule mining on multiple bootstrapped samples of the transaction data
+#' to assess the stability and reproducibility of the discovered rules.
+#'
+#' @param transactions Transaction data in various formats (list, matrix, or data.frame)
+#' @param algorithm Algorithm to use ("apriori" or "fp_growth")
+#' @param n_reps Number of bootstrap replications (default: 100)
+#' @param min_frequency Minimum frequency of rule occurrence across samples to retain (default: 0.9)
+#' @param min_support Minimum support threshold
+#' @param min_confidence Minimum confidence threshold
+#' @param min_lift Minimum lift threshold
+#' @param max_length Maximum length of itemsets
+#' @param parallel Whether to use parallel processing (default: TRUE)
+#' @param n_cores Number of cores to use (default: detectCores() - 1)
+#' @param verbose Whether to show progress
+#' @return Object of class "bootstrapped_association_rules"
+#' @export
+bootstrap_association_rules <- function(transactions, algorithm = "apriori", n_reps = 100,
+                                        min_frequency = 0.9, min_support = 0.1,
+                                        min_confidence = 0.8, min_lift = 1.0,
+                                        max_length = 10, parallel = TRUE,
+                                        n_cores = NULL, verbose = TRUE) {
+  # Input validation
+  if (!algorithm %in% c("apriori", "fp_growth")) {
+    stop("algorithm must be 'apriori' or 'fp_growth'")
+  }
+
+  # Prepare transactions once
+  if (verbose) cat("Preparing transaction data...\n")
+  trans_data <- prepare_transactions(transactions)
+  trans_list <- trans_data$transactions
+  n_trans <- length(trans_list)
+
+  # Define worker function
+  worker_fun <- function(i, trans_list, algorithm, min_support, min_confidence, min_lift, max_length) {
+    # Resample with replacement
+    indices <- sample(length(trans_list), replace = TRUE)
+    sample_trans <- trans_list[indices]
+
+    # Run algorithm
+    if (algorithm == "apriori") {
+      rules <- tryCatch(
+        {
+          apriori_rules(sample_trans, min_support, min_confidence, min_lift, max_length, verbose = FALSE)
+        },
+        error = function(e) {
+          return(NULL)
+        }
+      )
+    } else {
+      rules <- tryCatch(
+        {
+          fp_growth_rules(sample_trans, min_support, min_confidence, min_lift, verbose = FALSE)
+        },
+        error = function(e) {
+          return(NULL)
+        }
+      )
+    }
+
+    if (is.null(rules) || nrow(rules$rules) == 0) {
+      return(NULL)
+    }
+
+    return(rules$rules)
+  }
+
+  # Run bootstrap
+  if (verbose) cat(sprintf("Running %d bootstrap replications using %s...\n", n_reps, algorithm))
+
+  results_list <- list()
+
+  if (parallel && requireNamespace("parallel", quietly = TRUE)) {
+    if (is.null(n_cores)) {
+      n_cores <- max(1, parallel::detectCores() - 1)
+    }
+
+    if (verbose) cat(sprintf("Using parallel processing with %d cores...\n", n_cores))
+
+    # Setup cluster
+    cl <- parallel::makeCluster(n_cores)
+    on.exit(parallel::stopCluster(cl))
+
+    # Export necessary functions and objects
+    parallel::clusterExport(cl, c(
+      "apriori_rules", "fp_growth_rules", "prepare_transactions",
+      "create_transaction_matrix", "validate_parameters",
+      "find_frequent_itemsets_apriori", "generate_candidates_apriori",
+      "build_fp_tree", "mine_fp_tree", "create_fp_node",
+      "insert_transaction_fp", "generate_conditional_patterns",
+      "build_conditional_fp_tree", "generate_rules_from_patterns",
+      "generate_association_rules", "calculate_rule_metrics",
+      "create_empty_rules_object"
+    ),
+    envir = environment()
+    )
+
+    results_list <- parallel::parLapply(cl, 1:n_reps, worker_fun,
+      trans_list = trans_list,
+      algorithm = algorithm,
+      min_support = min_support,
+      min_confidence = min_confidence,
+      min_lift = min_lift,
+      max_length = max_length
+    )
+  } else {
+    if (parallel && verbose) cat("Parallel package not available, running sequentially...\n")
+
+    results_list <- lapply(1:n_reps, worker_fun,
+      trans_list = trans_list,
+      algorithm = algorithm,
+      min_support = min_support,
+      min_confidence = min_confidence,
+      min_lift = min_lift,
+      max_length = max_length
+    )
+  }
+
+  # Filter out NULL results
+  results_list <- results_list[!sapply(results_list, is.null)]
+  n_successful <- length(results_list)
+
+  if (n_successful == 0) {
+    warning("No rules found in any bootstrap sample")
+    return(NULL)
+  }
+
+  if (verbose) cat("Aggregating results...\n")
+
+  # Combine all rules
+  all_rules <- do.call(rbind, results_list)
+
+  # Create unique rule identifier
+  all_rules$rule_id <- paste(all_rules$antecedent, "=>", all_rules$consequent)
+
+  # Count rule frequencies
+  rule_counts <- table(all_rules$rule_id)
+  rule_freqs <- as.numeric(rule_counts) / n_reps
+
+  # Filter by frequency
+  valid_rules <- names(rule_counts)[rule_freqs >= min_frequency]
+
+  if (length(valid_rules) == 0) {
+    warning(sprintf("No rules met the minimum frequency threshold of %.2f", min_frequency))
+    return(NULL)
+  }
+
+  # Aggregate metrics for valid rules
+  aggregated_rules <- data.frame(
+    antecedent = character(length(valid_rules)),
+    consequent = character(length(valid_rules)),
+    frequency = numeric(length(valid_rules)),
+    support_mean = numeric(length(valid_rules)),
+    support_lower = numeric(length(valid_rules)),
+    support_upper = numeric(length(valid_rules)),
+    confidence_mean = numeric(length(valid_rules)),
+    confidence_lower = numeric(length(valid_rules)),
+    confidence_upper = numeric(length(valid_rules)),
+    lift_mean = numeric(length(valid_rules)),
+    lift_lower = numeric(length(valid_rules)),
+    lift_upper = numeric(length(valid_rules)),
+    stringsAsFactors = FALSE
+  )
+
+  for (i in seq_along(valid_rules)) {
+    rule_id <- valid_rules[i]
+    rule_data <- all_rules[all_rules$rule_id == rule_id, ]
+
+    # Parse rule parts
+    parts <- strsplit(rule_id, " => ")[[1]]
+    aggregated_rules$antecedent[i] <- parts[1]
+    aggregated_rules$consequent[i] <- parts[2]
+    aggregated_rules$frequency[i] <- nrow(rule_data) / n_reps
+
+    # Helper function for safe stats
+    get_stats <- function(values) {
+      if (length(unique(values)) == 1) {
+        return(list(mean = values[1], lower = values[1], upper = values[1]))
+      }
+      tryCatch(
+        {
+          test <- t.test(values, conf.level = 0.95)
+          return(list(mean = test$estimate, lower = test$conf.int[1], upper = test$conf.int[2]))
+        },
+        error = function(e) {
+          # Fallback for other errors (e.g. not enough observations)
+          m <- mean(values)
+          return(list(mean = m, lower = m, upper = m))
+        }
+      )
+    }
+
+    # Calculate statistics
+    # Support
+    supp_stats <- get_stats(rule_data$support)
+    aggregated_rules$support_mean[i] <- supp_stats$mean
+    aggregated_rules$support_lower[i] <- supp_stats$lower
+    aggregated_rules$support_upper[i] <- supp_stats$upper
+
+    # Confidence
+    conf_stats <- get_stats(rule_data$confidence)
+    aggregated_rules$confidence_mean[i] <- conf_stats$mean
+    aggregated_rules$confidence_lower[i] <- conf_stats$lower
+    aggregated_rules$confidence_upper[i] <- conf_stats$upper
+
+    # Lift
+    lift_stats <- get_stats(rule_data$lift)
+    aggregated_rules$lift_mean[i] <- lift_stats$mean
+    aggregated_rules$lift_lower[i] <- lift_stats$lower
+    aggregated_rules$lift_upper[i] <- lift_stats$upper
+  }
+
+  # Sort by frequency and lift
+  aggregated_rules <- aggregated_rules[order(aggregated_rules$frequency, aggregated_rules$lift_mean, decreasing = TRUE), ]
+  rownames(aggregated_rules) <- NULL
+
+  result <- list(
+    rules = aggregated_rules,
+    parameters = list(
+      algorithm = algorithm,
+      n_reps = n_reps,
+      min_frequency = min_frequency,
+      min_support = min_support,
+      min_confidence = min_confidence,
+      min_lift = min_lift
+    ),
+    summary = list(
+      n_transactions = n_trans,
+      n_successful_reps = n_successful,
+      n_rules = nrow(aggregated_rules)
+    )
+  )
+
+  class(result) <- "bootstrapped_association_rules"
+
+  if (verbose) {
+    cat("Bootstrapping completed!\n")
+    cat(sprintf("  - Found %d stable rules (frequency >= %.2f)\n", nrow(aggregated_rules), min_frequency))
+  }
+
+  return(result)
+}
+
+#' Print Method for Bootstrapped Association Rules
+#'
+#' @param x Bootstrapped association rules object
+#' @param ... Additional arguments
+#' @export
+print.bootstrapped_association_rules <- function(x, ...) {
+  cat("Bootstrapped Association Rules\n")
+  cat("=============================\n\n")
+
+  cat("Parameters:\n")
+  cat("  Algorithm:", x$parameters$algorithm, "\n")
+  cat("  Replications:", x$parameters$n_reps, "\n")
+  cat("  Min Frequency:", x$parameters$min_frequency, "\n")
+  cat("  Min Support:", x$parameters$min_support, "\n")
+  cat("  Min Confidence:", x$parameters$min_confidence, "\n\n")
+
+  cat("Summary:\n")
+  cat("  Stable Rules Found:", x$summary$n_rules, "\n\n")
+
+  if (nrow(x$rules) > 0) {
+    cat("Top 10 Stable Rules:\n")
+    top_rules <- head(x$rules, 10)
+    for (i in 1:nrow(top_rules)) {
+      cat(sprintf("%2d. %s => %s\n", i, top_rules$antecedent[i], top_rules$consequent[i]))
+      cat(sprintf(
+        "    Freq: %.2f, Lift: %.3f (%.3f-%.3f), Conf: %.3f (%.3f-%.3f)\n",
+        top_rules$frequency[i],
+        top_rules$lift_mean[i], top_rules$lift_lower[i], top_rules$lift_upper[i],
+        top_rules$confidence_mean[i], top_rules$confidence_lower[i], top_rules$confidence_upper[i]
+      ))
+    }
+  } else {
+    cat("No stable rules found.\n")
+  }
+}
+
+#' Summary Method for Bootstrapped Association Rules
+#'
+#' @param object Bootstrapped association rules object
+#' @param ... Additional arguments
+#' @export
+summary.bootstrapped_association_rules <- function(object, ...) {
+  print(object)
+}

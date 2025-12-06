@@ -1,0 +1,68 @@
+---
+title: "Association Rules with Bootstrap Confidence Intervals"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tnaExtras)
+library(tna)
+```
+
+## Load Data
+
+```{r}
+data(group_regulation, package = "tna")
+```
+
+## Bootstrap Association Rules
+
+```{r}
+set.seed(42)
+results <- bootstrap_association_rules(
+    transactions = group_regulation,
+    algorithm = "apriori",
+    n_reps = 50,
+    min_frequency = 0.7,
+    min_support = 0.1,
+    min_confidence = 0.6,
+    min_lift = 1.0,
+    max_length = 5,
+    parallel = TRUE,
+    verbose = FALSE
+)
+```
+
+## Results
+
+```{r}
+print(results)
+```
+
+## Top 10 Rules with Confidence Intervals
+
+```{r}
+top10 <- head(results$rules, 10)
+for (i in 1:nrow(top10)) {
+    cat(sprintf("\n%d. %s => %s\n", i, top10$antecedent[i], top10$consequent[i]))
+    cat(sprintf("   Frequency: %.2f\n", top10$frequency[i]))
+    cat(sprintf(
+        "   Support:    %.3f [%.3f - %.3f]\n",
+        top10$support_mean[i], top10$support_lower[i], top10$support_upper[i]
+    ))
+    cat(sprintf(
+        "   Confidence: %.3f [%.3f - %.3f]\n",
+        top10$confidence_mean[i], top10$confidence_lower[i], top10$confidence_upper[i]
+    ))
+    cat(sprintf(
+        "   Lift:       %.3f [%.3f - %.3f]\n",
+        top10$lift_mean[i], top10$lift_lower[i], top10$lift_upper[i]
+    ))
+}
+```
+
+## Visualization
+
+```{r}
+plot(results, type = "rules", top_n = 15)
+```
