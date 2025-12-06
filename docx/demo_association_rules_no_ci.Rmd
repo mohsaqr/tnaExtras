@@ -50,7 +50,9 @@ for (i in 1:nrow(top10)) {
 ## Visualizations
 
 ```{r}
-plot(results, type = "rules", top_n = 15)
+plot(results, type = "network", top_n = 15)
 plot_rules_network(results, top_n = 15)
 plot_rules_quality(results)
+
+
 ```
