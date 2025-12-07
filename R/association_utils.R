@@ -709,7 +709,7 @@ get_rules_network <- function(rules, top_n = Inf) {
   # Pre-allocate lists for better performance
   edge_list <- vector("list", nrow(rules_df))
 
-  for (i in 1:nrow(rules_df)) {
+  for (i in seq_len(nrow(rules_df))) {
     antecedent_items <- strsplit(rules_df$antecedent[i], ",")[[1]]
     consequent_items <- strsplit(rules_df$consequent[i], ",")[[1]]
 
@@ -729,13 +729,36 @@ get_rules_network <- function(rules, top_n = Inf) {
   # Combine all edges
   edges <- do.call(rbind, edge_list)
 
+  # Aggregate duplicate edges (same from-to pair)
+  # Group by from-to and aggregate metrics
+  edge_key <- paste(edges$from, edges$to, sep = "->")
+  unique_keys <- unique(edge_key)
+
+  aggregated_edges <- do.call(rbind, lapply(unique_keys, function(key) {
+    idx <- which(edge_key == key)
+    if (length(idx) == 1) {
+      edges[idx, ]
+    } else {
+      # Multiple edges with same from-to: aggregate
+      data.frame(
+        from = edges$from[idx[1]],
+        to = edges$to[idx[1]],
+        weight = mean(edges$lift[idx]), # Average lift as weight
+        lift = max(edges$lift[idx]), # Max lift
+        confidence = max(edges$confidence[idx]), # Max confidence
+        support = max(edges$support[idx]), # Max support
+        stringsAsFactors = FALSE
+      )
+    }
+  }))
+
   # Extract unique nodes
-  all_items <- unique(c(edges$from, edges$to))
+  all_items <- unique(c(aggregated_edges$from, aggregated_edges$to))
   nodes <- data.frame(
     id = all_items,
     label = all_items,
     stringsAsFactors = FALSE
   )
 
-  return(list(nodes = nodes, edges = edges))
+  return(list(nodes = nodes, edges = aggregated_edges))
 }
