@@ -672,13 +672,62 @@ export_association_rules <- function(rules, file, format = "csv", include_summar
 
 #' Get Rules Network Data
 #'
-#' Extracts network data (nodes and edges) from association rules.
+#' Extracts network data (nodes and edges) from association rules with flexible
+#' aggregation options for handling duplicate edges.
 #'
 #' @param rules Association rules object or data frame
 #' @param top_n Number of top rules to include (default: Inf for all)
+#' @param weight_by Metric to use for edge weights. Options:
+#'   \itemize{
+#'     \item \code{"lift"} - Use lift values (default)
+#'     \item \code{"confidence"} - Use confidence values
+#'     \item \code{"support"} - Use support values
+#'   }
+#' @param agg_fun Aggregation function for duplicate edges. Options:
+#'   \itemize{
+#'     \item \code{"mean"} - Average values (default)
+#'     \item \code{"max"} - Maximum value
+#'     \item \code{"min"} - Minimum value
+#'     \item \code{"sum"} - Sum of values
+#'     \item \code{"median"} - Median value
+#'   }
+#'
 #' @return List containing 'nodes' (data frame) and 'edges' (data frame)
+#'
+#' @details
+#' When multiple rules produce the same antecedent→consequent item pair,
+#' the edges are aggregated using the specified aggregation function.
+#' The weight is determined by the \code{weight_by} parameter, while
+#' lift, confidence, and support are all aggregated using \code{agg_fun}.
+#'
+#' @examples
+#' \dontrun{
+#' # Get network with lift-based weights, averaged
+#' network <- get_rules_network(rules, top_n = 20)
+#'
+#' # Use confidence as weights, take maximum
+#' network <- get_rules_network(rules,
+#'   top_n = 20,
+#'   weight_by = "confidence",
+#'   agg_fun = "max"
+#' )
+#'
+#' # Use support as weights, sum duplicates
+#' network <- get_rules_network(rules,
+#'   top_n = 20,
+#'   weight_by = "support",
+#'   agg_fun = "sum"
+#' )
+#' }
+#'
 #' @export
-get_rules_network <- function(rules, top_n = Inf) {
+get_rules_network <- function(rules, top_n = Inf,
+                              weight_by = c("lift", "confidence", "support"),
+                              agg_fun = c("mean", "max", "min", "sum", "median")) {
+  # Match arguments
+  weight_by <- match.arg(weight_by)
+  agg_fun <- match.arg(agg_fun)
+
   # Handle association_rules object
   if (inherits(rules, "association_rules")) {
     rules_df <- rules$rules
@@ -705,6 +754,15 @@ get_rules_network <- function(rules, top_n = Inf) {
     rules_df <- head(rules_df[order(rules_df$lift, decreasing = TRUE), ], top_n)
   }
 
+  # Get aggregation function
+  agg_func <- switch(agg_fun,
+    "mean" = mean,
+    "max" = max,
+    "min" = min,
+    "sum" = sum,
+    "median" = median
+  )
+
   # Initialize edges data frame
   # Pre-allocate lists for better performance
   edge_list <- vector("list", nrow(rules_df))
@@ -718,7 +776,6 @@ get_rules_network <- function(rules, top_n = Inf) {
     combinations <- expand.grid(from = antecedent_items, to = consequent_items, stringsAsFactors = FALSE)
 
     # Add metrics
-    combinations$weight <- rules_df$lift[i]
     combinations$lift <- rules_df$lift[i]
     combinations$confidence <- rules_df$confidence[i]
     combinations$support <- rules_df$support[i]
@@ -737,16 +794,19 @@ get_rules_network <- function(rules, top_n = Inf) {
   aggregated_edges <- do.call(rbind, lapply(unique_keys, function(key) {
     idx <- which(edge_key == key)
     if (length(idx) == 1) {
-      edges[idx, ]
+      # Single edge: add weight based on weight_by parameter
+      result <- edges[idx, ]
+      result$weight <- result[[weight_by]]
+      result
     } else {
       # Multiple edges with same from-to: aggregate
       data.frame(
         from = edges$from[idx[1]],
         to = edges$to[idx[1]],
-        weight = mean(edges$lift[idx]), # Average lift as weight
-        lift = max(edges$lift[idx]), # Max lift
-        confidence = max(edges$confidence[idx]), # Max confidence
-        support = max(edges$support[idx]), # Max support
+        weight = agg_func(edges[[weight_by]][idx]),
+        lift = agg_func(edges$lift[idx]),
+        confidence = agg_func(edges$confidence[idx]),
+        support = agg_func(edges$support[idx]),
         stringsAsFactors = FALSE
       )
     }
