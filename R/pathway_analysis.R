@@ -762,7 +762,6 @@ pathway_outcome <- function(data,
     # Model 1: Action frequency
     if (length(pred_cols) > 0) {
       f1_terms <- pred_cols
-      if (!is.null(group_col)) f1_terms <- c(f1_terms, group_col)
       f1 <- stats::as.formula(paste("y ~", paste(f1_terms, collapse = " + ")))
 
       glm_res$freq <- tryCatch({
@@ -783,7 +782,6 @@ pathway_outcome <- function(data,
       }
 
       f2_terms <- has_cols
-      if (!is.null(group_col)) f2_terms <- c(f2_terms, group_col)
       f2 <- stats::as.formula(paste("y ~", paste(f2_terms, collapse = " + ")))
 
       glm_res$has <- tryCatch({
@@ -813,7 +811,6 @@ pathway_outcome <- function(data,
 
       if (data.table::uniqueN(glm_df$pat_group) > 1) {
         f3_terms <- "pat_group"
-        if (!is.null(group_col)) f3_terms <- c(f3_terms, group_col)
         f3 <- stats::as.formula(paste("y ~", paste(f3_terms, collapse = " + ")))
 
         glm_res$pattern <- tryCatch({
