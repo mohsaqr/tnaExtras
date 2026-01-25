@@ -365,6 +365,14 @@ extract_sequences_from_wide <- function(data,
 #'   "Other" category in GLM (default is TRUE).
 #' @param run_glm Logical. Whether to run logistic regression models
 #'   (default is TRUE).
+#' @param mixed_effects Character or FALSE. Controls random effects modeling
+#'   when group_col is provided. Options:
+#'   \itemize{
+#'     \item{FALSE}{Use standard GLM (no random effects, default)}
+#'     \item{"lme4"}{Use lme4::glmer() with group as random intercept}
+#'     \item{"glmmTMB"}{Use glmmTMB::glmmTMB() with group as random intercept}
+#'   }
+#'   Packages are installed on first use if not available.
 #' @param success_class Character. The outcome value considered as success
 #'   (default is "Right").
 #' @param verbose Logical. Whether to print progress and results
@@ -411,10 +419,11 @@ extract_sequences_from_wide <- function(data,
 #' \strong{Group Comparison}
 #' When a group_tna object or group_col is provided, the analysis includes:
 #' \itemize{
-#'   \item Group variable in GLM models as predictor
-#'   \item Separate analysis tables by group
+#'   \item Descriptive tables with group breakdowns
 #'   \item Visual comparison across groups
 #' }
+#' If mixed_effects is set to "lme4" or "glmmTMB", group is modeled as a
+#' random intercept in generalized linear mixed models (GLMM).
 #'
 #' @examples
 #' # Create sample data
@@ -443,6 +452,7 @@ pathway_outcome <- function(data,
                             top_n_patterns = 20,
                             aggregate_rare = TRUE,
                             run_glm = TRUE,
+                            mixed_effects = FALSE,
                             success_class = "Right",
                             verbose = TRUE,
                             plot = TRUE) {
@@ -730,6 +740,56 @@ pathway_outcome <- function(data,
     status_report["GLM"] <- "Running"
     log_msg("\n--- GLM ANALYSIS ---\n")
 
+    # Setup mixed effects if requested
+    use_mixed <- !isFALSE(mixed_effects) && !is.null(group_col)
+
+    if (use_mixed) {
+      pkg <- if (is.character(mixed_effects)) mixed_effects else "lme4"
+      if (!pkg %in% c("lme4", "glmmTMB")) {
+        warning("mixed_effects must be FALSE, 'lme4', or 'glmmTMB'. Using 'lme4'.")
+        pkg <- "lme4"
+      }
+
+      # Check and install package if needed
+      if (!requireNamespace(pkg, quietly = TRUE)) {
+        log_msg(sprintf("Package '%s' not found. Installing...\n", pkg))
+        utils::install.packages(pkg)
+        if (!requireNamespace(pkg, quietly = TRUE)) {
+          warning(sprintf("Failed to install '%s'. Falling back to standard GLM.", pkg))
+          use_mixed <- FALSE
+        }
+      }
+
+      if (use_mixed) {
+        log_msg(sprintf("Using %s for mixed effects (group as random intercept)\n", pkg))
+      }
+    }
+
+    # Helper function to fit model with optional random effects
+    fit_model <- function(formula_str, df, model_name) {
+      tryCatch({
+        if (use_mixed) {
+          # Add random intercept for group
+          mixed_formula <- stats::as.formula(
+            paste(formula_str, "+ (1 |", group_col, ")")
+          )
+          if (pkg == "lme4") {
+            m <- lme4::glmer(mixed_formula, data = df, family = stats::binomial)
+          } else {
+            m <- glmmTMB::glmmTMB(mixed_formula, data = df, family = stats::binomial)
+          }
+        } else {
+          f <- stats::as.formula(formula_str)
+          m <- stats::glm(f, data = df, family = stats::binomial)
+        }
+        if (verbose) .print_glm_results(m, model_name)
+        m
+      }, error = function(e) {
+        log_msg("  Error in", model_name, ":", e$message, "\n")
+        NULL
+      })
+    }
+
     glm_df <- data.table::copy(pattern_df)
     glm_df[, y := as.integer(outcome == success_class)]
 
@@ -761,17 +821,8 @@ pathway_outcome <- function(data,
 
     # Model 1: Action frequency
     if (length(pred_cols) > 0) {
-      f1_terms <- pred_cols
-      f1 <- stats::as.formula(paste("y ~", paste(f1_terms, collapse = " + ")))
-
-      glm_res$freq <- tryCatch({
-        m <- stats::glm(f1, data = glm_df, family = stats::binomial)
-        if (verbose) .print_glm_results(m, "Model 1: Action Frequency")
-        m
-      }, error = function(e) {
-        log_msg("  Error in Model 1:", e$message, "\n")
-        NULL
-      })
+      f1_str <- paste("y ~", paste(pred_cols, collapse = " + "))
+      glm_res$freq <- fit_model(f1_str, glm_df, "Model 1: Action Frequency")
     }
 
     # Model 2: Action presence (binary)
@@ -781,17 +832,8 @@ pathway_outcome <- function(data,
         glm_df[, (has_cols[i]) := as.integer(get(pred_cols[i]) > 0)]
       }
 
-      f2_terms <- has_cols
-      f2 <- stats::as.formula(paste("y ~", paste(f2_terms, collapse = " + ")))
-
-      glm_res$has <- tryCatch({
-        m <- stats::glm(f2, data = glm_df, family = stats::binomial)
-        if (verbose) .print_glm_results(m, "Model 2: Action Presence")
-        m
-      }, error = function(e) {
-        log_msg("  Error in Model 2:", e$message, "\n")
-        NULL
-      })
+      f2_str <- paste("y ~", paste(has_cols, collapse = " + "))
+      glm_res$has <- fit_model(f2_str, glm_df, "Model 2: Action Presence")
     }
 
     # Model 3: Top patterns
@@ -810,17 +852,8 @@ pathway_outcome <- function(data,
       glm_df[, pat_group := stats::relevel(pat_group, ref = ref_lvl)]
 
       if (data.table::uniqueN(glm_df$pat_group) > 1) {
-        f3_terms <- "pat_group"
-        f3 <- stats::as.formula(paste("y ~", paste(f3_terms, collapse = " + ")))
-
-        glm_res$pattern <- tryCatch({
-          m <- stats::glm(f3, data = glm_df, family = stats::binomial)
-          if (verbose) .print_glm_results(m, "Model 3: Top Patterns")
-          m
-        }, error = function(e) {
-          log_msg("  Error in Model 3:", e$message, "\n")
-          NULL
-        })
+        f3_str <- "y ~ pat_group"
+        glm_res$pattern <- fit_model(f3_str, glm_df, "Model 3: Top Patterns")
       }
     }
 
