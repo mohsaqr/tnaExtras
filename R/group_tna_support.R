@@ -87,26 +87,36 @@ convert_group_tna <- function(group_tna_obj) {
       stop("tna object for group '", group_name, "' must contain 'data' element")
     }
     
-    # Get numeric data
-    numeric_data <- tna_obj$data
-    n_sequences <- nrow(numeric_data)
-    
-    # Convert numeric codes to text labels
-    text_data <- numeric_data  # Start with the same structure
-    for (col_idx in 1:ncol(numeric_data)) {
-      col_values <- numeric_data[, col_idx]
+    # Get data
+    raw_data <- tna_obj$data
+    n_sequences <- nrow(raw_data)
+
+    # Check if data is numeric (needs conversion) or already text
+    first_col <- raw_data[, 1]
+    is_numeric_data <- is.numeric(first_col) ||
+                       (is.integer(first_col) && !any(first_col %in% labels, na.rm = TRUE))
+
+    if (is_numeric_data) {
       # Convert numeric codes to text labels
-      text_values <- character(length(col_values))
-      valid_indices <- !is.na(col_values) & col_values >= 1 & col_values <= length(labels)
-      text_values[valid_indices] <- labels[col_values[valid_indices]]
-      text_values[!valid_indices] <- NA_character_
-      text_data[, col_idx] <- text_values
+      text_data <- raw_data  # Start with the same structure
+      for (col_idx in 1:ncol(raw_data)) {
+        col_values <- raw_data[, col_idx]
+        # Convert numeric codes to text labels
+        text_values <- character(length(col_values))
+        valid_indices <- !is.na(col_values) & col_values >= 1 & col_values <= length(labels)
+        text_values[valid_indices] <- labels[col_values[valid_indices]]
+        text_values[!valid_indices] <- NA_character_
+        text_data[, col_idx] <- text_values
+      }
+      # Convert to data.frame
+      text_data <- as.data.frame(text_data, stringsAsFactors = FALSE)
+    } else {
+      # Data is already text - use as is
+      text_data <- as.data.frame(raw_data, stringsAsFactors = FALSE)
     }
-    
-    # Convert to data.frame
-    text_data <- as.data.frame(text_data, stringsAsFactors = FALSE)
+
     # Ensure column names are preserved
-    colnames(text_data) <- colnames(numeric_data)
+    colnames(text_data) <- colnames(raw_data)
     
     # Store the data frame and group info
     all_data_frames[[group_name]] <- text_data

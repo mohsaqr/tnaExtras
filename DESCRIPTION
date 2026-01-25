@@ -1,6 +1,6 @@
 Package: tnaExtras
 Title: Temporal Network Analysis and Sequential Pattern Detection Extras
-Version: 0.3.0
+Version: 0.3.1
 Depends: R (>= 2.10)
 Authors@R: 
     person("Mohammed", "Saqr", , "mohammed.saqr@example.com", role = c("aut", "cre"))
@@ -33,7 +33,8 @@ Imports:
     utils,
     cluster,
     parallel,
-    stringdist
+    stringdist,
+    data.table
 Suggests: 
     testthat (>= 3.0.0),
     knitr,
