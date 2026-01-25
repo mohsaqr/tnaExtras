@@ -8,6 +8,8 @@
 
 A comprehensive R package for analyzing temporal patterns in sequential data. This package provides tools for sequence comparison, pattern analysis, and computation of sequence-level indices with focus on complexity systems, Markov chain dynamics, and temporal network analysis.
 
+**NEW in v0.3.3: Markov Chain Analysis** - Comprehensive temporal metrics (first passage time, recurrence, hitting probabilities, absorption), stability analysis, and full markovchain package compatibility.
+
 **NEW in v0.4.0: Unified Pattern Discovery** - Revolutionary `discover_patterns()` function combines all pattern analysis capabilities into a single, 10-50x faster interface with optimized algorithms.
 
 **NEW in v0.3.0: Association Rule Learning** - Complete implementation of Apriori and FP-Growth algorithms for discovering frequent patterns and association rules in transaction data.
@@ -18,6 +20,11 @@ A comprehensive R package for analyzing temporal patterns in sequential data. Th
 
 ## Features
 
+- **Markov Chain Analysis**: Comprehensive temporal metrics, stability analysis, and markovchain package compatibility
+  - **NEW**: `analyze_markov_chain()` for full chain analysis (eigenvalues, equilibrium, passage times, convergence)
+  - **NEW**: Temporal metrics: `compute_first_passage_time()`, `compute_state_recurrence_time()`, `compute_hitting_probabilities()`, `compute_expected_absorption_time()`
+  - **NEW**: Stability analysis: `calculate_state_stability()`, `calculate_state_volatility()`, `calculate_state_resilience()`
+  - **NEW**: markovchain-compatible aliases: `meanFirstPassageTime()`, `meanRecurrenceTime()`, `hittingProbabilities()`, `meanAbsorptionTime()`
 - **Association Rule Learning**: Complete implementation of Apriori and FP-Growth algorithms for mining frequent patterns and association rules
   - **NEW**: `apriori_rules()` and `fp_growth_rules()` functions
   - **NEW**: Comprehensive visualization suite with 5 different plot types
@@ -835,11 +842,198 @@ plot(patterns, type = "patterns", top_n = 15)
 plot(abstract, type = "patterns", top_n = 10)
 ```
 
+## Markov Chain Analysis (NEW in v0.3.3)
+
+Comprehensive Markov chain analysis with temporal metrics, stability analysis, and full compatibility with the `markovchain` R package.
+
+### Quick Start
+
+```r
+library(tnaExtras)
+
+# Create a transition matrix
+P <- matrix(c(0.7, 0.2, 0.1,
+              0.3, 0.5, 0.2,
+              0.1, 0.3, 0.6), nrow = 3, byrow = TRUE)
+colnames(P) <- rownames(P) <- c("Active", "Average", "Disengaged")
+
+# Full Markov chain analysis
+result <- analyze_markov_chain(P)
+
+# View equilibrium distribution
+result$equilibrium_distribution
+#>     Active    Average Disengaged
+#>       0.40       0.35       0.30
+
+# View mean first passage times
+result$mean_first_passage_times
+```
+
+### Temporal Metrics
+
+#### First Passage Time
+
+```r
+# How long to reach "Active" state from other states?
+compute_first_passage_time(P, "Active")
+#>    Average Disengaged
+#>       3.75       5.00
+
+# markovchain-compatible alias
+meanFirstPassageTime(P, "Active")
+```
+
+#### Recurrence Time
+
+```r
+# Expected return time to each state
+compute_state_recurrence_time(P)
+#>     Active    Average Disengaged
+#>       2.50       2.86       3.33
+
+# markovchain-compatible alias
+meanRecurrenceTime(P)
+```
+
+#### Hitting Probabilities
+
+```r
+# Reachability probability matrix
+compute_hitting_probabilities(P)
+
+# markovchain-compatible alias
+hittingProbabilities(P)
+```
+
+#### Absorption Time (for Absorbing Chains)
+
+```r
+# Create an absorbing chain
+P_abs <- matrix(c(0.5, 0.3, 0.2, 0.0,
+                  0.2, 0.4, 0.3, 0.1,
+                  0.0, 0.0, 1.0, 0.0,
+                  0.0, 0.0, 0.0, 1.0), nrow = 4, byrow = TRUE)
+colnames(P_abs) <- c("Struggling", "Progressing", "Completed", "Dropped")
+
+# Expected time to complete or drop out
+compute_expected_absorption_time(P_abs)
+#> Struggling Progressing
+#>       4.00        2.50
+
+# markovchain-compatible alias
+meanAbsorptionTime(P_abs)
+```
+
+### Comprehensive Chain Analysis
+
+```r
+# Full analysis with all metrics
+result <- analyze_markov_chain(P, num_steps = 100, verbose = TRUE)
+
+# Access results
+result$equilibrium_distribution    # Stationary distribution
+result$mean_first_passage_times    # MFPT matrix
+result$spectral_gap                # Convergence rate
+result$is_irreducible              # Chain connectivity
+result$mixing_time                 # Steps to convergence
+result$entropy_rate                # Long-run entropy rate
+
+# Visualize results
+plot(result, type = "distance")      # Convergence to stationary
+plot(result, type = "distributions") # State probabilities over time
+plot(result, type = "entropy")       # Entropy evolution
+plot(result, type = "eigenvalues")   # Eigenvalue spectrum
+```
+
+### Stability Analysis
+
+```r
+# Comprehensive stability metrics
+calculate_state_stability(P)
+#>        State Persistence Sojourn_Time Stationary_Prob Stability_Score
+#> 1     Active        0.70         3.33            0.40          0.1771
+#> 2    Average        0.50         2.00            0.35          0.1037
+#> 3 Disengaged        0.60         2.50            0.30          0.0986
+
+# Volatility analysis
+calculate_state_volatility(P)
+
+# Resilience to perturbations
+calculate_state_resilience(P)
+
+# Full stability report
+stability_report(P)
+
+# Stability visualizations
+plot_stability_analysis(P, type = "stability")
+plot_stability_analysis(P, type = "volatility")
+```
+
+### Working with TNA Models
+
+```r
+# Create example TNA model
+model <- create_example_tna_model(n_students = 100)
+
+# Analyze TNA model directly
+results <- analyze_tna_model(model, plot_results = TRUE)
+
+# Create absorbing chain example
+model_abs <- create_example_absorbing_chain()
+results_abs <- analyze_tna_model(model_abs)
+results_abs$absorbing_chain_analysis$expected_absorption_times
+```
+
+### Simulation
+
+```r
+# Simulate a trajectory
+path <- simulate_markov_chain(P, n_steps = 100, initial_state = "Disengaged")
+table(path)
+
+# Estimate return times via simulation
+return_times <- calculate_return_times(P, state = "Active", n_simulations = 1000)
+mean(return_times)
+```
+
+### Compare Multiple Chains
+
+```r
+P1 <- matrix(c(0.9, 0.1, 0.2, 0.8), nrow = 2, byrow = TRUE)
+P2 <- matrix(c(0.5, 0.5, 0.5, 0.5), nrow = 2, byrow = TRUE)
+
+compare_markov_chains(Sticky = P1, Uniform = P2)
+#>     Chain States Irreducible SpectralGap EntropyRate
+#> 1  Sticky      2        TRUE      0.3000      0.4690
+#> 2 Uniform      2        TRUE      1.0000      1.0000
+```
+
+### Markov Chain Functions Reference
+
+| Function | Description |
+|----------|-------------|
+| `compute_first_passage_time()` | Expected steps to reach target state |
+| `compute_state_recurrence_time()` | Expected return time to each state |
+| `compute_hitting_probabilities()` | Reachability probability matrix |
+| `compute_expected_absorption_time()` | Time to absorbing states |
+| `analyze_markov_chain()` | Comprehensive chain analysis |
+| `analyze_tna_model()` | TNA-specific analysis wrapper |
+| `compare_markov_chains()` | Compare multiple chains |
+| `simulate_markov_chain()` | Generate sample paths |
+| `calculate_state_stability()` | Stability metrics per state |
+| `calculate_state_volatility()` | Transition uncertainty metrics |
+| `calculate_state_resilience()` | Perturbation resistance |
+| `stability_report()` | Full stability summary |
+| `extract_transition_matrix()` | Extract P matrix from various inputs |
+| `is_stochastic()` | Validate transition matrix |
+| `calculate_entropy()` | Shannon entropy |
+| `calculate_mixing_time()` | Time to reach equilibrium |
+
 ## Citation
 
 If you use this package in your research, please cite:
 
 ```
 Mohammed Saqr (2025). tnaExtras: Transition Network Analysis and Sequential Pattern Detection Extras.
-R package version 0.3.0. https://github.com/mohsaqr/tnaExtras
+R package version 0.3.3. https://github.com/mohsaqr/tnaExtras
 ```
